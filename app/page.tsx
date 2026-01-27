@@ -75,6 +75,16 @@ export default function GuugieHyperFinalPage() {
     setTimeout(() => setToastAlert(null), 4000);
   };
 
+  // FIX 5: Prevent body scroll ketika sidebar open
+  useEffect(() => {
+    if (isSidebarOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+    return () => { document.body.style.overflow = 'auto'; };
+  }, [isSidebarOpen]);
+
   useEffect(() => {
     if (textAreaRef.current) {
       textAreaRef.current.style.height = "auto";
@@ -94,9 +104,9 @@ export default function GuugieHyperFinalPage() {
         setUserCategory(category);
         setResearchMode(CATEGORY_MODES[category][0].id);
       }
-      const { data: profile } = await supabase.from("profiles").select("quota").eq("id", user.id).single();
+      const { data: profile = null } = await supabase.from("profiles").select("quota").eq("id", user.id).single();
       if (profile) setQuota(profile.quota);
-      const { data: chats } = await supabase.from("chats").select("*").eq("user_id", user.id).order('created_at', { ascending: false });
+      const { data: chats = [] } = await supabase.from("chats").select("*").eq("user_id", user.id).order('created_at', { ascending: false });
       if (chats) setHistory(chats);
       setIsLoadingSession(false);
     };
@@ -118,7 +128,7 @@ export default function GuugieHyperFinalPage() {
   useEffect(() => {
     if (currentChatId) {
       const fetchMessages = async () => {
-        const { data } = await supabase.from("messages").select("*").eq("chat_id", currentChatId).order('created_at', { ascending: true });
+        const { data = [] } = await supabase.from("messages").select("*").eq("chat_id", currentChatId).order('created_at', { ascending: true });
         if (data) setMessages(data as Message[]);
       };
       fetchMessages();
@@ -165,7 +175,7 @@ export default function GuugieHyperFinalPage() {
     
     try {
       if (!chatId) {
-        const { data: newChat } = await supabase.from("chats").insert([{ user_id: user.id, title: inputText.substring(0, 30) || pendingFile?.name.substring(0, 30) }]).select().single();
+        const { data: newChat = null } = await supabase.from("chats").insert([{ user_id: user.id, title: inputText.substring(0, 30) || pendingFile?.name.substring(0, 30) }]).select().single();
         if (newChat) { chatId = newChat.id; setCurrentChatId(chatId); setHistory([newChat, ...history]); }
       }
       let finalContent = inputText;
@@ -278,7 +288,8 @@ export default function GuugieHyperFinalPage() {
       {activeModal === 'privacy' && <Modal title="Privacy Policy"><div className="space-y-4"><p className="font-bold text-white">Keamanan Data</p><p>Privasi Anda adalah prioritas kami.</p></div></Modal>}
       {activeModal === 'feedback' && <Modal title="Kritik & Saran"><div className="space-y-6"><div className="bg-white/5 p-6 rounded-2xl border border-white/10"><p className="text-[10px] font-black uppercase text-blue-500 mb-2">Hubungi Kami Melalui Email</p><p className="text-lg font-bold">guuglabs@gmail.com</p></div></div></Modal>}
 
-      <aside className={`fixed lg:relative z-[100] h-full transition-all duration-500 bg-[#0F172A] border-r border-white/5 flex flex-col ${isSidebarOpen ? "w-72 shadow-2xl translate-x-0" : "w-72 -translate-x-full lg:w-0 lg:translate-x-0 overflow-hidden"}`}>
+      {/* FIX 3: Sidebar Height & Position */}
+      <aside className={`fixed lg:relative z-[100] h-[100dvh] lg:h-full top-0 left-0 transition-all duration-500 bg-[#0F172A] border-r border-white/5 flex flex-col ${isSidebarOpen ? "w-72 shadow-2xl translate-x-0" : "w-72 -translate-x-full lg:w-0 lg:translate-x-0 overflow-hidden"}`}>
         <div className="w-72 flex flex-col h-full p-6 shrink-0">
           <button onClick={() => {setCurrentChatId(null); setMessages([]); setIsSidebarOpen(false);}} className="w-full flex items-center justify-center gap-3 bg-blue-600 p-4 rounded-2xl font-black text-[10px] uppercase shadow-xl active:scale-95 transition-all">
             <Plus size={16} /> New Chat
@@ -309,7 +320,8 @@ export default function GuugieHyperFinalPage() {
 
       {isSidebarOpen && <div onClick={() => setIsSidebarOpen(false)} className="fixed inset-0 bg-black/50 z-[90] lg:hidden backdrop-blur-sm"></div>}
 
-      <main className="flex-1 flex flex-col relative min-w-0 h-full overflow-hidden">
+      {/* FIX 4: Main Layout Structure */}
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative h-full">
         <header className="shrink-0 flex items-center justify-between p-4 lg:p-6 bg-[#0B101A]/80 backdrop-blur-xl border-b border-white/5 z-40">
           <div className="flex items-center gap-3 lg:gap-6">
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-white/5 rounded-xl text-slate-400 transition-all">
@@ -337,40 +349,43 @@ export default function GuugieHyperFinalPage() {
           </div>
         </header>
 
-        {/* FIX SCROLL: touch-pan-y, overscroll-contain, h-full, min-h-0 */}
-        <div className="flex-1 overflow-y-auto p-4 lg:p-8 custom-scrollbar scroll-smooth overscroll-contain touch-pan-y min-h-0">
-          <div className="max-w-4xl mx-auto space-y-8 pb-10 flex flex-col items-center">
-            {messages.length === 0 ? (
-              <div className="mt-10 md:mt-20 text-center max-w-xl animate-in fade-in slide-in-from-bottom-8 duration-1000">
-                <h2 className="text-3xl lg:text-6xl font-black uppercase italic tracking-tighter text-white">Halo {user?.user_metadata?.full_name?.split(' ')[0] || 'Researcher'},</h2>
-                <p className="text-[10px] lg:text-sm text-slate-500 font-black uppercase tracking-[0.4em] mt-4 md:mt-6">Siap Bekerja Sebagai {userCategory}?</p>
-              </div>
-            ) : (
-              <div className="w-full space-y-4 md:space-y-6 pb-20">
-                {messages.map((m, i) => (
-                  <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4`}>
-                    <div className={`max-w-[95%] lg:max-w-[85%] p-3 md:p-5 lg:p-7 rounded-[24px] md:rounded-[28px] lg:rounded-[36px] text-[13px] lg:text-[15px] border shadow-2xl ${m.role === 'user' ? 'bg-[#1E293B] border-white/5 rounded-tr-none' : 'bg-blue-600/5 border-blue-500/10 rounded-tl-none'}`}>
-                      {/* BANTAI LDR NUCLEAR: Pake selector [&_p]:!m-0 biar gak bisa nolak lagi */}
-                      <div className="prose prose-invert prose-sm lg:prose-base max-w-none text-slate-100 leading-tight md:leading-relaxed break-words !prose-p:m-0 !prose-li:m-0 [&_p]:!m-0 [&_p]:!mt-0 [&_p]:!mb-1 [&_blockquote]:!mt-1 [&_blockquote]:!mb-1 [&_ul]:!my-1 [&_li]:!my-0 prose-headings:text-blue-400 prose-strong:text-white">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+        {/* FIX 4: Chat Area Wrapper - Solusi Scroll Macet & LDR */}
+        <div className="flex-1 min-h-0 relative overflow-hidden">
+          <div className="absolute inset-0 overflow-y-auto custom-scrollbar touch-pan-y overscroll-contain scroll-smooth">
+            <div className="max-w-4xl mx-auto p-4 lg:p-8 flex flex-col items-center">
+              {messages.length === 0 ? (
+                <div className="mt-10 md:mt-20 text-center max-w-xl animate-in fade-in slide-in-from-bottom-8 duration-1000">
+                  <h2 className="text-3xl lg:text-6xl font-black uppercase italic tracking-tighter text-white">Halo {user?.user_metadata?.full_name?.split(' ')[0] || 'Researcher'},</h2>
+                  <p className="text-[10px] lg:text-sm text-slate-500 font-black uppercase tracking-[0.4em] mt-4 md:mt-6">Siap Bekerja Sebagai {userCategory}?</p>
+                </div>
+              ) : (
+                <div className="w-full space-y-4 md:space-y-6 pb-32">
+                  {messages.map((m, i) => (
+                    <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4`}>
+                      <div className={`max-w-[95%] lg:max-w-[85%] p-3 md:p-5 lg:p-7 rounded-[24px] md:rounded-[28px] lg:rounded-[36px] text-[13px] lg:text-[15px] border shadow-2xl ${m.role === 'user' ? 'bg-[#1E293B] border-white/5 rounded-tr-none' : 'bg-blue-600/5 border-blue-500/10 rounded-tl-none'}`}>
+                        {/* BANTAI LDR NUCLEAR: Gabungan !prose-p:m-0 dan leading-tight */}
+                        <div className="prose prose-invert prose-sm lg:prose-base max-w-none text-slate-100 leading-tight md:leading-relaxed break-words !prose-p:m-0 !prose-li:m-0 [&_p]:!m-0 [&_p]:!mb-1 [&_blockquote]:!my-1 [&_ul]:!my-1 [&_li]:!my-0 prose-headings:text-blue-400 prose-strong:text-white">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-                {isLoading && (
-                  <div className="flex justify-start animate-in fade-in duration-500">
-                    <div className="bg-blue-600/5 border border-blue-500/10 p-6 rounded-[32px] rounded-tl-none flex gap-2 items-center">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" /><div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-.3s]" /><div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-.5s]" />
+                  ))}
+                  {isLoading && (
+                    <div className="flex justify-start animate-in fade-in duration-500">
+                      <div className="bg-blue-600/5 border border-blue-500/10 p-6 rounded-[32px] rounded-tl-none flex gap-2 items-center">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" /><div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-.3s]" /><div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-.5s]" />
+                      </div>
                     </div>
-                  </div>
-                )}
-                <div ref={chatEndRef} />
-              </div>
-            )}
+                  )}
+                  <div ref={chatEndRef} />
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="shrink-0 p-3 md:p-4 lg:p-8 pb-10 md:pb-12 bg-gradient-to-t from-[#0B101A] via-[#0B101A] to-transparent">
+        {/* FIX 4: Input Area tetep di bawah */}
+        <div className="shrink-0 p-3 md:p-4 lg:p-8 pb-10 md:pb-12 bg-gradient-to-t from-[#0B101A] via-[#0B101A] to-transparent z-40">
           <div className="max-w-4xl mx-auto relative">
             {pendingFile && (
               <div className="absolute -top-24 left-0 w-full animate-in slide-in-from-bottom-2 duration-300 px-2">
