@@ -70,26 +70,30 @@ export default function GuugieHyperFinalPage() {
   const [editTitle, setEditTitle] = useState("");
   const [pendingFile, setPendingFile] = useState<{ name: string; url: string } | null>(null);
   const [researchMode, setResearchMode] = useState("");
+  const [isInitialLoad, setIsInitialLoad] = useState(true); // Flag animasi
 
   const triggerAlert = (msg: string) => {
     setToastAlert({ show: true, msg });
     setTimeout(() => setToastAlert(null), 4000);
   };
 
-  // FIX 2 & 5: Handler pilih chat agar scroll reset ke atas
+  // FIX: Handler pilih chat history
   const handleSelectChat = async (chatId: string) => {
     setIsSidebarOpen(false);
     if (currentChatId === chatId) return;
     
+    setIsInitialLoad(true); // Aktifkan flag biar gak auto-scroll down pas load
     setCurrentChatId(chatId);
-    setMessages([]); // Clear untuk hindari layout shift pesan lama
+    setMessages([]); // Clear dulu biar bersih
     
     const { data } = await supabase.from("messages").select("*").eq("chat_id", chatId).order('created_at', { ascending: true });
+    
     if (data) {
       setMessages(data as Message[]);
-      // Reset scroll position ke atas untuk chat lama
+      // Reset scroll ke ATAS untuk chat lama
       setTimeout(() => {
         if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
+        setIsInitialLoad(false); // Matikan flag setelah beres load
       }, 50);
     }
   };
@@ -103,15 +107,17 @@ export default function GuugieHyperFinalPage() {
     return () => { document.body.style.overflow = 'auto'; };
   }, [isSidebarOpen]);
 
-  // FIX SCROLL: Pisahkan logika scroll hanya untuk pesan baru
+  // FIX SCROLL: Hanya ke bawah untuk pesan baru
   useEffect(() => {
-    if (messages.length > 0) {
+    if (messages.length > 0 && !isInitialLoad) {
       const lastMsg = messages[messages.length - 1];
       if (isLoading || lastMsg.role === 'assistant') {
-        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        setTimeout(() => {
+          chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+        }, 100);
       }
     }
-  }, [messages, isLoading]);
+  }, [messages, isLoading, isInitialLoad]);
 
   useEffect(() => {
     if (textAreaRef.current) {
@@ -187,6 +193,8 @@ export default function GuugieHyperFinalPage() {
     if (isLoading || (!inputText.trim() && !pendingFile) || quota <= 0) return;
     
     setIsLoading(true);
+    setIsInitialLoad(false); // Pastikan animasi & scroll jalan buat pesan baru
+    
     let chatId = currentChatId;
     
     try {
@@ -222,7 +230,11 @@ export default function GuugieHyperFinalPage() {
     const { error } = await supabase.from("chats").delete().eq("id", id);
     if (!error) {
       setHistory(history.filter(c => c.id !== id));
-      if (currentChatId === id) { setCurrentChatId(null); setMessages([]); }
+      if (currentChatId === id) { 
+        setCurrentChatId(null); 
+        setMessages([]); 
+        setIsInitialLoad(true);
+      }
     }
   };
 
@@ -260,7 +272,12 @@ export default function GuugieHyperFinalPage() {
       {/* --- SIDEBAR --- */}
       <aside className={`fixed lg:relative z-[100] h-[100dvh] lg:h-full top-0 left-0 transition-all duration-500 bg-[#0F172A] border-r border-white/5 flex flex-col ${isSidebarOpen ? "w-72 shadow-2xl translate-x-0" : "w-72 -translate-x-full lg:w-0 lg:translate-x-0 overflow-hidden"}`}>
         <div className="w-72 flex flex-col h-full p-6 shrink-0">
-          <button onClick={() => {setCurrentChatId(null); setMessages([]); setIsSidebarOpen(false);}} className="w-full flex items-center justify-center gap-3 bg-blue-600 p-4 rounded-2xl font-black text-[10px] uppercase shadow-xl active:scale-95 transition-all">
+          <button onClick={() => {
+            setCurrentChatId(null); 
+            setMessages([]); 
+            setIsSidebarOpen(false);
+            setIsInitialLoad(true);
+          }} className="w-full flex items-center justify-center gap-3 bg-blue-600 p-4 rounded-2xl font-black text-[10px] uppercase shadow-xl active:scale-95 transition-all">
             <Plus size={16} /> New Chat
           </button>
           <div className="mt-10 flex-1 overflow-y-auto custom-scrollbar">
@@ -321,7 +338,7 @@ export default function GuugieHyperFinalPage() {
         <div className="flex-1 min-h-0 relative overflow-hidden">
           <div 
             ref={scrollContainerRef}
-            key={`chat-container-${currentChatId || 'new'}`} // FIX 5: Unik per chat agar state scroll reset
+            key={`chat-container-${currentChatId || 'new'}`}
             className="absolute inset-0 overflow-y-auto custom-scrollbar touch-pan-y overscroll-contain scroll-smooth"
           >
             <div className="max-w-4xl mx-auto p-4 lg:p-8 flex flex-col items-center">
@@ -333,7 +350,11 @@ export default function GuugieHyperFinalPage() {
               ) : (
                 <div className="w-full space-y-4 md:space-y-6 pb-32">
                   {messages.map((m, i) => (
-                    <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4`}>
+                    <div 
+                      key={`${currentChatId}-${m.id || i}`} 
+                      className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} 
+                        ${!isInitialLoad ? 'animate-in fade-in duration-300' : 'animate-in slide-in-from-bottom-4'}`}
+                    >
                       <div className={`max-w-[88%] lg:max-w-[80%] p-3 md:p-5 lg:p-7 rounded-[24px] md:rounded-[28px] lg:rounded-[36px] text-[13px] lg:text-[15px] border shadow-2xl ${m.role === 'user' ? 'bg-[#1E293B] border-white/5 rounded-tr-none' : 'bg-blue-600/5 border-blue-500/10 rounded-tl-none'}`}>
                         {/* NUCLEAR ANTI-LDR STAY: !prose-p:m-0 */}
                         <div className="prose prose-invert prose-sm lg:prose-base max-w-none text-slate-100 leading-tight md:leading-relaxed break-words !prose-p:m-0 !prose-li:m-0 [&_p]:!m-0 [&_p]:!mb-1 [&_blockquote]:!my-1 [&_ul]:!my-1 [&_li]:!my-0 prose-headings:text-blue-400 prose-strong:text-white">
