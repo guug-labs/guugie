@@ -353,7 +353,7 @@ export default function GuugieHyperFinalPage() {
                 {messages.map((m, i) => (
                   <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4`}>
                     <div className={`max-w-[95%] lg:max-w-[85%] p-4 md:p-5 lg:p-7 rounded-[24px] md:rounded-[28px] lg:rounded-[36px] text-[13px] lg:text-[15px] border shadow-2xl ${m.role === 'user' ? 'bg-[#1E293B] border-white/5 rounded-tr-none' : 'bg-blue-600/5 border-blue-500/10 rounded-tl-none'}`}>
-                      <div className="prose prose-invert prose-sm lg:prose-base max-w-none text-slate-300 leading-relaxed break-words"><ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown></div>
+                      <div className="prose prose-invert prose-sm lg:prose-base max-w-none text-slate-100 leading-[1.8] md:leading-loose break-words prose-li:my-3 prose-p:my-4 prose-headings:text-blue-400 prose-strong:text-white"><ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown></div>
                     </div>
                   </div>
                 ))}
@@ -415,13 +415,16 @@ export default function GuugieHyperFinalPage() {
               <button onClick={handleSendMessage} disabled={isLoading} className="p-2.5 md:p-3 lg:p-5 bg-blue-600 text-white rounded-[18px] md:rounded-[20px] lg:rounded-[24px] flex items-center justify-center min-w-[50px] md:min-w-[55px] lg:min-w-[70px] transition-all active:scale-95 shadow-xl hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">{isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send size={20} />}</button>
             </div>
 
-            <footer className="mt-6 md:mt-10 flex flex-wrap justify-center items-center gap-x-4 md:gap-x-10 gap-y-3 md:gap-y-5 text-[8px] md:text-[9px] lg:text-[11px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] text-white/30">
-              <button onClick={() => setActiveModal('library')} className="flex items-center gap-1.5 md:gap-2.5 hover:text-blue-500 transition-all group"><BookOpen size={14} className="group-hover:scale-110 transition-transform"/> Library</button>
-              <button onClick={() => setActiveModal('tos')} className="flex items-center gap-1.5 md:gap-2.5 hover:text-blue-500 transition-all group"><ShieldCheck size={14} className="group-hover:scale-110 transition-transform"/> Terms</button>
-              <button onClick={() => setActiveModal('privacy')} className="flex items-center gap-1.5 md:gap-2.5 hover:text-blue-500 transition-all group"><Shield size={14} className="group-hover:scale-110 transition-transform"/> Privacy</button>
-              <div className="h-4 w-[1px] bg-white/10 hidden md:block" />
-              <button onClick={() => setActiveModal('feedback')} className="flex items-center gap-1.5 md:gap-2.5 hover:text-blue-400 transition-all text-blue-500/50 group font-black"><MessageSquare size={14} className="group-hover:scale-110 transition-transform"/> Kritik & Saran</button>
-              <p className="w-full text-center mt-4 md:mt-6 text-white/10 select-none tracking-[0.4em] md:tracking-[0.5em] font-black">© 2026 GUUG LABS</p>
+            {/* FIX 2: Footer compact, gak social distancing lagi */}
+            <footer className="mt-5 md:mt-8 flex flex-wrap justify-center items-center gap-x-5 md:gap-x-8 gap-y-2 text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] text-white/20 transition-all hover:text-white/40">
+            <button onClick={() => setActiveModal('library')} className="hover:text-blue-500 transition-all">Library</button>
+            <button onClick={() => setActiveModal('tos')} className="hover:text-blue-500 transition-all">Terms</button>
+            <button onClick={() => setActiveModal('privacy')} className="hover:text-blue-500 transition-all">Privacy</button>
+  
+            <div className="h-3 w-[1px] bg-white/10 hidden md:block" />
+  
+            <button onClick={() => setActiveModal('feedback')} className="hover:text-blue-400 transition-all">Kritik & Saran</button>
+            <p className="w-full text-center mt-2 text-[8px] md:text-[9px] text-white/10 select-none tracking-[0.3em]">© 2026 GUUG LABS</p>
             </footer>
           </div>
         </div>
