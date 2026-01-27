@@ -353,7 +353,7 @@ export default function GuugieHyperFinalPage() {
                 {messages.map((m, i) => (
                   <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4`}>
                     <div className={`max-w-[95%] lg:max-w-[85%] p-4 md:p-5 lg:p-7 rounded-[24px] md:rounded-[28px] lg:rounded-[36px] text-[13px] lg:text-[15px] border shadow-2xl ${m.role === 'user' ? 'bg-[#1E293B] border-white/5 rounded-tr-none' : 'bg-blue-600/5 border-blue-500/10 rounded-tl-none'}`}>
-                      <div className="prose prose-invert prose-sm lg:prose-base max-w-none text-slate-100 leading-[1.8] md:leading-loose break-words prose-li:my-3 prose-p:my-4 prose-headings:text-blue-400 prose-strong:text-white"><ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown></div>
+                      <div className="prose prose-invert prose-sm lg:prose-base max-w-none text-slate-100 leading-relaxed md:leading-loose break-words prose-li:my-1 md:prose-li:my-3 prose-p:my-2 md:prose-p:my-4 prose-headings:text-blue-400 prose-strong:text-white"><ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown></div>
                     </div>
                   </div>
                 ))}
