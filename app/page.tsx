@@ -70,44 +70,82 @@ export default function GuugieHyperFinalPage() {
   const [editTitle, setEditTitle] = useState("");
   const [pendingFile, setPendingFile] = useState<{ name: string; url: string } | null>(null);
   const [researchMode, setResearchMode] = useState("");
-  const [isInitialLoad, setIsInitialLoad] = useState(true); // Flag animasi
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   const triggerAlert = (msg: string) => {
     setToastAlert({ show: true, msg });
     setTimeout(() => setToastAlert(null), 4000);
   };
 
-  // FIX: Handler pilih chat history
+  // FIX: Custom Hook untuk prevent iOS Zoom (Ref Poin 5)
+  useEffect(() => {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    if (isIOS) {
+      const style = document.createElement('style');
+      style.innerHTML = `
+        @media screen and (max-width: 768px) {
+          textarea, input {
+            font-size: 16px !important;
+            transform: scale(1) !important;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+      return () => { document.head.removeChild(style); };
+    }
+  }, []);
+
+  // Mic Fix iOS
+  const handleMicClick = async () => {
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop());
+        startListening();
+      } catch (err) { triggerAlert("Izin Mic ditolak."); }
+    } else { startListening(); }
+  };
+
+  const startListening = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) { triggerAlert("Browser gak support Mic."); return; }
+    if (isListening) { recognitionRef.current?.stop(); setIsListening(false); return; }
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'id-ID';
+    recognition.continuous = false;
+    recognition.onstart = () => { setIsListening(true); triggerAlert("🎤 Mendengarkan..."); };
+    recognition.onend = () => { setIsListening(false); recognitionRef.current = null; };
+    recognition.onresult = (e: any) => {
+      const transcript = e.results[0][0].transcript;
+      setInputText(prev => prev + (prev ? " " : "") + transcript);
+      triggerAlert("✓ Berhasil!");
+    };
+    recognition.onerror = () => setIsListening(false);
+    recognitionRef.current = recognition;
+    try { recognition.start(); } catch (err) { triggerAlert("Gagal!"); }
+  };
+
   const handleSelectChat = async (chatId: string) => {
     setIsSidebarOpen(false);
     if (currentChatId === chatId) return;
-    
-    setIsInitialLoad(true); // Aktifkan flag biar gak auto-scroll down pas load
+    setIsInitialLoad(true);
     setCurrentChatId(chatId);
-    setMessages([]); // Clear dulu biar bersih
-    
+    setMessages([]);
     const { data } = await supabase.from("messages").select("*").eq("chat_id", chatId).order('created_at', { ascending: true });
-    
     if (data) {
       setMessages(data as Message[]);
-      // Reset scroll ke ATAS untuk chat lama
       setTimeout(() => {
         if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
-        setIsInitialLoad(false); // Matikan flag setelah beres load
+        setIsInitialLoad(false);
       }, 50);
     }
   };
 
   useEffect(() => {
-    if (isSidebarOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'auto';
-    }
+    document.body.style.overflow = isSidebarOpen ? 'hidden' : 'auto';
     return () => { document.body.style.overflow = 'auto'; };
   }, [isSidebarOpen]);
 
-  // FIX SCROLL: Hanya ke bawah untuk pesan baru
   useEffect(() => {
     if (messages.length > 0 && !isInitialLoad) {
       const lastMsg = messages[messages.length - 1];
@@ -132,9 +170,7 @@ export default function GuugieHyperFinalPage() {
       if (!user) { router.push("/login"); return; }
       setUser(user);
       const category = user.user_metadata?.category;
-      if (!category) {
-        setIsCategoryModalOpen(true);
-      } else {
+      if (!category) { setIsCategoryModalOpen(true); } else {
         setUserCategory(category);
         setResearchMode(CATEGORY_MODES[category][0].id);
       }
@@ -147,30 +183,34 @@ export default function GuugieHyperFinalPage() {
     initGuard();
   }, [router, supabase]);
 
-  const lockCategory = async (category: string) => {
-    const { error } = await supabase.auth.updateUser({ data: { category: category } });
-    if (!error) {
-      setUserCategory(category);
-      setResearchMode(CATEGORY_MODES[category][0].id);
-      setIsCategoryModalOpen(false);
-      triggerAlert(`Role terkunci: ${category}!`);
-    } else {
-      triggerAlert("Gagal mengunci role.");
-    }
-  };
-
-  const startListening = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) { triggerAlert("Gunakan Chrome."); return; }
-    if (isListening) { recognitionRef.current?.stop(); setIsListening(false); return; }
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'id-ID';
-    recognition.onstart = () => setIsListening(true);
-    recognition.onend = () => { setIsListening(false); recognitionRef.current = null; };
-    recognition.onresult = (e: any) => setInputText(prev => prev + " " + e.results[0][0].transcript);
-    recognition.onerror = () => setIsListening(false);
-    recognitionRef.current = recognition;
-    recognition.start();
+  const handleSendMessage = async () => {
+    if (isLoading || (!inputText.trim() && !pendingFile) || quota <= 0) return;
+    setIsLoading(true);
+    setIsInitialLoad(false);
+    let chatId = currentChatId;
+    try {
+      if (!chatId) {
+        const { data: newChat } = await supabase.from("chats").insert([{ user_id: user.id, title: inputText.substring(0, 30) || pendingFile?.name.substring(0, 30) }]).select().single();
+        if (newChat) { chatId = newChat.id; setCurrentChatId(chatId); setHistory([newChat, ...history]); }
+      }
+      let finalContent = inputText;
+      if (pendingFile) finalContent += `\n\n> 📄 **File Terlampir:** [${pendingFile.name}](${pendingFile.url})`;
+      await supabase.from("messages").insert([{ chat_id: chatId, role: 'user', content: finalContent }]);
+      setMessages(prev => [...prev, { role: 'user', content: finalContent }]);
+      setInputText("");
+      setPendingFile(null);
+      const response = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId, message: finalContent, mode: researchMode, category: userCategory }),
+      });
+      const data = await response.json();
+      if (!data.error) {
+        setMessages(prev => [...prev, { role: 'assistant', content: data.content }]);
+        setQuota(prev => prev - 1);
+      }
+    } catch (error) { triggerAlert("Server AI Sibuk."); } 
+    finally { setIsLoading(false); }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -184,192 +224,54 @@ export default function GuugieHyperFinalPage() {
       if (uploadError) throw uploadError;
       const { data: { publicUrl } } = supabase.storage.from('research-files').getPublicUrl(filePath);
       setPendingFile({ name: file.name, url: publicUrl });
-      triggerAlert(`${file.name} Siap Dikirim!`);
-    } catch (error) { triggerAlert("Gagal upload file."); } 
+      triggerAlert(`${file.name} Siap!`);
+    } catch (error) { triggerAlert("Gagal!"); } 
     finally { setIsUploading(false); }
   };
-
-  const handleSendMessage = async () => {
-    if (isLoading || (!inputText.trim() && !pendingFile) || quota <= 0) return;
-    
-    setIsLoading(true);
-    setIsInitialLoad(false); // Pastikan animasi & scroll jalan buat pesan baru
-    
-    let chatId = currentChatId;
-    
-    try {
-      if (!chatId) {
-        const { data: newChat } = await supabase.from("chats").insert([{ user_id: user.id, title: inputText.substring(0, 30) || pendingFile?.name.substring(0, 30) }]).select().single();
-        if (newChat) { chatId = newChat.id; setCurrentChatId(chatId); setHistory([newChat, ...history]); }
-      }
-      let finalContent = inputText;
-      if (pendingFile) finalContent += `\n\n> 📄 **File Terlampir:** [${pendingFile.name}](${pendingFile.url})`;
-      const userMsg: Message = { role: 'user', content: finalContent, isFile: !!pendingFile, fileName: pendingFile?.name, fileUrl: pendingFile?.url };
-      
-      await supabase.from("messages").insert([{ chat_id: chatId, role: 'user', content: finalContent }]);
-      setMessages(prev => [...prev, userMsg]);
-      setInputText("");
-      setPendingFile(null);
-
-      const response = await fetch('/api/gemini', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId, message: finalContent, mode: researchMode, category: userCategory }),
-      });
-      const data = await response.json();
-      if (data.error) { triggerAlert(data.error); } 
-      else {
-        setMessages(prev => [...prev, { role: 'assistant', content: data.content }]);
-        setQuota(prev => prev - 1);
-      }
-    } catch (error) { triggerAlert("Server AI Sibuk."); } 
-    finally { setIsLoading(false); }
-  };
-
-  const handleDeleteChat = async (id: string) => {
-    const { error } = await supabase.from("chats").delete().eq("id", id);
-    if (!error) {
-      setHistory(history.filter(c => c.id !== id));
-      if (currentChatId === id) { 
-        setCurrentChatId(null); 
-        setMessages([]); 
-        setIsInitialLoad(true);
-      }
-    }
-  };
-
-  const handleRenameChat = async (id: string) => {
-    if (!editTitle.trim()) { setEditingChatId(null); return; }
-    const { error } = await supabase.from("chats").update({ title: editTitle }).eq("id", id);
-    if (!error) {
-      setHistory(history.map(c => c.id === id ? { ...c, title: editTitle } : c));
-      setEditingChatId(null);
-      triggerAlert("Nama chat diperbarui!");
-    }
-  };
-
-  const handleLogout = async () => { await supabase.auth.signOut(); router.push("/login"); };
-
-  const Modal = ({ title, children }: { title: string, children: React.ReactNode }) => (
-    <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-[#0B101A]/95 backdrop-blur-2xl animate-in fade-in duration-300">
-      <div className="bg-[#1E293B] border border-white/10 w-full max-w-2xl rounded-[30px] md:rounded-[40px] overflow-hidden shadow-2xl relative">
-        <button onClick={() => setActiveModal(null)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 md:p-3 hover:bg-white/10 rounded-2xl transition-all text-slate-400 hover:text-white z-10"><X size={20}/></button>
-        <div className="p-6 md:p-10 border-b border-white/5 bg-white/5">
-          <h3 className="text-xs font-black uppercase tracking-[0.3em] text-blue-500">{title}</h3>
-        </div>
-        <div className="p-6 md:p-10 max-h-[60vh] overflow-y-auto text-sm text-slate-300 custom-scrollbar leading-relaxed">
-          {children}
-        </div>
-      </div>
-    </div>
-  );
 
   if (isLoadingSession) return <div className="flex h-screen w-full items-center justify-center bg-[#0B101A]"><Loader2 className="animate-spin text-blue-600" /></div>;
 
   return (
     <div className="flex h-[100dvh] bg-[#0B101A] text-slate-200 overflow-hidden font-sans">
-      
-      {/* --- SIDEBAR --- */}
       <aside className={`fixed lg:relative z-[100] h-[100dvh] lg:h-full top-0 left-0 transition-all duration-500 bg-[#0F172A] border-r border-white/5 flex flex-col ${isSidebarOpen ? "w-72 shadow-2xl translate-x-0" : "w-72 -translate-x-full lg:w-0 lg:translate-x-0 overflow-hidden"}`}>
         <div className="w-72 flex flex-col h-full p-6 shrink-0">
-          <button onClick={() => {
-            setCurrentChatId(null); 
-            setMessages([]); 
-            setIsSidebarOpen(false);
-            setIsInitialLoad(true);
-          }} className="w-full flex items-center justify-center gap-3 bg-blue-600 p-4 rounded-2xl font-black text-[10px] uppercase shadow-xl active:scale-95 transition-all">
-            <Plus size={16} /> New Chat
-          </button>
+          <button onClick={() => { setCurrentChatId(null); setMessages([]); setIsSidebarOpen(false); setIsInitialLoad(true); }} className="w-full flex items-center justify-center gap-3 bg-blue-600 p-4 rounded-2xl font-black text-[10px] uppercase shadow-xl transition-all"><Plus size={16} /> New Chat</button>
           <div className="mt-10 flex-1 overflow-y-auto custom-scrollbar">
-            <h3 className="text-[10px] uppercase tracking-widest text-slate-500 font-black mb-6 flex items-center gap-2 px-2">History {userCategory}</h3>
             {history.map((chat) => (
-              <div key={chat.id} className="group flex items-center gap-2 mb-3">
-                {editingChatId === chat.id ? (
-                  <div className="flex-1 flex items-center gap-2 bg-white/5 p-2 rounded-xl border border-blue-500/30">
-                    <input autoFocus className="bg-transparent border-none outline-none text-[11px] font-bold w-full" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleRenameChat(chat.id)} />
-                    <button onClick={() => handleRenameChat(chat.id)} className="text-blue-500"><Check size={14} /></button>
-                  </div>
-                ) : (
-                  <button onClick={() => handleSelectChat(chat.id)} className={`flex-1 text-left p-4 rounded-xl text-[11px] border transition-all font-bold ${currentChatId === chat.id ? 'bg-blue-600/10 border-blue-500/50 text-blue-400' : 'bg-white/5 border-transparent hover:border-white/10'}`}>
-                    <span className="truncate w-32 inline-block">{chat.title}</span>
-                  </button>
-                )}
-                <div className="flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all">
-                  <button onClick={() => {setEditingChatId(chat.id); setEditTitle(chat.title);}} className="p-2 text-slate-500 hover:bg-white/10 rounded-lg transition-all"><Pencil size={14} /></button>
-                  <button onClick={(e) => {e.stopPropagation(); handleDeleteChat(chat.id);}} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-all"><Trash2 size={14} /></button>
-                </div>
-              </div>
+              <button key={chat.id} onClick={() => handleSelectChat(chat.id)} className={`w-full text-left mb-3 p-4 rounded-xl text-[11px] border transition-all font-bold ${currentChatId === chat.id ? 'bg-blue-600/10 border-blue-500/50 text-blue-400' : 'bg-white/5 border-transparent'}`}>
+                <span className="truncate w-48 inline-block">{chat.title}</span>
+              </button>
             ))}
           </div>
         </div>
       </aside>
 
-      {isSidebarOpen && <div onClick={() => setIsSidebarOpen(false)} className="fixed inset-0 bg-black/50 z-[90] lg:hidden backdrop-blur-sm"></div>}
-
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative h-full">
         <header className="shrink-0 flex items-center justify-between p-4 lg:p-6 bg-[#0B101A]/80 backdrop-blur-xl border-b border-white/5 z-40">
-          <div className="flex items-center gap-3 lg:gap-6">
-            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-white/5 rounded-xl text-slate-400 transition-all">
-              {isSidebarOpen ? <PanelLeftClose size={22} /> : <PanelLeftOpen size={22} />}
-            </button>
-            <div className="flex flex-col">
-                <h1 className="text-lg lg:text-2xl font-black italic uppercase tracking-tighter">Guugie</h1>
-                <span className="text-[8px] font-black text-blue-500 uppercase tracking-widest">{userCategory} MODE</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 md:gap-4 relative">
-            <div className="bg-orange-500/10 border border-orange-500/20 px-3 py-1.5 md:px-4 rounded-full"><span className="text-[9px] md:text-[10px] font-black text-orange-500 uppercase tracking-widest">Poin: {quota}</span></div>
-            <div className="relative">
-              <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="p-2 border border-white/10 rounded-xl hover:bg-white/5 transition-all active:scale-95"><User size={20} /></button>
-              {isProfileOpen && (
-                <div className="absolute right-0 mt-3 w-56 bg-[#1E293B] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-[60]">
-                  <div className="p-4 border-b border-white/5 bg-white/5">
-                    <p className="text-[10px] font-black uppercase text-blue-500 tracking-widest mb-1">{userCategory}</p>
-                    <p className="text-xs font-bold truncate text-slate-400">{user?.email}</p>
-                  </div>
-                  <button onClick={handleLogout} className="w-full flex items-center gap-3 p-4 hover:bg-red-500/10 text-red-400 text-xs font-black uppercase transition-all"><LogOut size={16} /> Keluar Sesi</button>
-                </div>
-              )}
-            </div>
-          </div>
+          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-white/5 rounded-xl"><PanelLeftOpen size={22} /></button>
+          <h1 className="text-lg font-black italic uppercase">Guugie</h1>
+          <div className="bg-orange-500/10 border border-orange-500/20 px-3 py-1.5 rounded-full text-[9px] font-black text-orange-500">Poin: {quota}</div>
         </header>
 
-        {/* --- CHAT AREA --- */}
         <div className="flex-1 min-h-0 relative overflow-hidden">
-          <div 
-            ref={scrollContainerRef}
-            key={`chat-container-${currentChatId || 'new'}`}
-            className="absolute inset-0 overflow-y-auto custom-scrollbar touch-pan-y overscroll-contain scroll-smooth"
-          >
-            <div className="max-w-4xl mx-auto p-4 lg:p-8 flex flex-col items-center">
+          <div ref={scrollContainerRef} className="absolute inset-0 overflow-y-auto custom-scrollbar touch-pan-y overscroll-contain">
+            <div className="max-w-4xl mx-auto p-4 flex flex-col items-center">
               {messages.length === 0 ? (
-                <div className="mt-10 md:mt-20 text-center max-w-xl animate-in fade-in slide-in-from-bottom-8 duration-1000">
-                  <h2 className="text-3xl lg:text-6xl font-black uppercase italic tracking-tighter text-white">Halo {user?.user_metadata?.full_name?.split(' ')[0] || 'Researcher'},</h2>
-                  <p className="text-[10px] lg:text-sm text-slate-500 font-black uppercase tracking-[0.4em] mt-4 md:mt-6">Siap Bekerja Sebagai {userCategory}?</p>
+                <div className="mt-20 text-center animate-in fade-in duration-1000">
+                  <h2 className="text-3xl font-black uppercase italic text-white">Halo {user?.user_metadata?.full_name?.split(' ')[0] || 'Researcher'},</h2>
+                  <p className="text-[10px] text-slate-500 font-black uppercase mt-4">Siap Bekerja Sebagai {userCategory}?</p>
                 </div>
               ) : (
-                <div className="w-full space-y-4 md:space-y-6 pb-32">
+                <div className="w-full space-y-4 pb-32">
                   {messages.map((m, i) => (
-                    <div 
-                      key={`${currentChatId}-${m.id || i}`} 
-                      className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} 
-                        ${!isInitialLoad ? 'animate-in fade-in duration-300' : 'animate-in slide-in-from-bottom-4'}`}
-                    >
-                      <div className={`max-w-[88%] lg:max-w-[80%] p-3 md:p-5 lg:p-7 rounded-[24px] md:rounded-[28px] lg:rounded-[36px] text-[13px] lg:text-[15px] border shadow-2xl ${m.role === 'user' ? 'bg-[#1E293B] border-white/5 rounded-tr-none' : 'bg-blue-600/5 border-blue-500/10 rounded-tl-none'}`}>
-                        {/* NUCLEAR ANTI-LDR STAY: !prose-p:m-0 */}
-                        <div className="prose prose-invert prose-sm lg:prose-base max-w-none text-slate-100 leading-tight md:leading-relaxed break-words !prose-p:m-0 !prose-li:m-0 [&_p]:!m-0 [&_p]:!mb-1 [&_blockquote]:!my-1 [&_ul]:!my-1 [&_li]:!my-0 prose-headings:text-blue-400 prose-strong:text-white">
+                    <div key={`${currentChatId}-${i}`} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} ${!isInitialLoad ? 'animate-in fade-in duration-300' : 'animate-in slide-in-from-bottom-4'}`}>
+                      <div className={`max-w-[88%] p-3 md:p-5 rounded-[24px] text-[13px] border shadow-2xl ${m.role === 'user' ? 'bg-[#1E293B] border-white/5 rounded-tr-none' : 'bg-blue-600/5 border-blue-500/10 rounded-tl-none'}`}>
+                        <div className="prose prose-invert prose-sm max-w-none text-slate-100 leading-tight !prose-p:m-0 [&_p]:!m-0 [&_p]:!mb-1">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                         </div>
                       </div>
                     </div>
                   ))}
-                  {isLoading && (
-                    <div className="flex justify-start animate-in fade-in duration-500">
-                      <div className="bg-blue-600/5 border border-blue-500/10 p-6 rounded-[32px] rounded-tl-none flex gap-2 items-center">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" /><div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-.3s]" /><div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-.5s]" />
-                      </div>
-                    </div>
-                  )}
                   <div ref={chatEndRef} />
                 </div>
               )}
@@ -377,49 +279,25 @@ export default function GuugieHyperFinalPage() {
           </div>
         </div>
 
-        {/* --- INPUT AREA --- */}
-        <div className="shrink-0 p-3 md:p-4 lg:p-8 pb-10 md:pb-12 bg-gradient-to-t from-[#0B101A] via-[#0B101A] to-transparent z-40">
+        <div className="shrink-0 p-3 pb-10 bg-gradient-to-t from-[#0B101A] to-transparent z-40">
           <div className="max-w-4xl mx-auto relative">
-            <div className="absolute -top-10 md:-top-12 left-2 z-50">
-              <button onClick={() => setIsModeMenuOpen(!isModeMenuOpen)} className="flex items-center gap-3 px-3 py-1.5 md:px-4 md:py-2 bg-[#1E293B] border border-white/10 rounded-xl text-[9px] font-black uppercase shadow-xl hover:border-blue-500/30 transition-all">
-                <span className="text-blue-500">{researchMode}</span><ChevronDown size={12} className={`transition-transform duration-300 ${isModeMenuOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {isModeMenuOpen && userCategory && (
-                <div className="absolute bottom-12 left-0 w-64 bg-[#1E293B] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2">
-                  {CATEGORY_MODES[userCategory].map((mode) => (
-                    <button key={mode.id} onClick={() => { setResearchMode(mode.id); setIsModeMenuOpen(false); }} className="w-full text-left p-4 hover:bg-white/5 flex items-center justify-between border-b border-white/5 last:border-0 transition-all group">
-                      <div><p className={`text-[10px] font-black uppercase transition-colors ${researchMode === mode.id ? 'text-blue-500' : 'text-slate-200 group-hover:text-blue-400'}`}>{mode.id}</p><p className="text-[8px] text-slate-500 font-bold mt-1 uppercase tracking-tighter">{mode.desc}</p></div>
-                      {researchMode === mode.id && <Check size={14} className="text-blue-500" />}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="bg-[#1E293B] border border-white/10 rounded-[24px] md:rounded-[28px] lg:rounded-[38px] p-2 md:p-2.5 lg:p-3.5 shadow-2xl focus-within:ring-2 focus-within:ring-blue-500/20 transition-all flex items-end gap-1 md:gap-3 backdrop-blur-sm">
-              <button onClick={() => fileInputRef.current?.click()} disabled={isUploading || !!pendingFile} className="p-2.5 md:p-3 lg:p-4 text-slate-500 hover:bg-white/5 rounded-2xl transition-all active:scale-90">{isUploading ? <Loader2 size={20} className="animate-spin text-blue-500" /> : <Paperclip size={20} />}</button>
+            <div className="bg-[#1E293B] border border-white/10 rounded-[30px] p-2 flex items-end gap-2 backdrop-blur-sm">
+              <button onClick={() => fileInputRef.current?.click()} className="p-3 text-slate-500"><Paperclip size={20} /></button>
               <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+              {/* FIX ZOOM: text-[16px] & inline style */}
               <textarea 
-                ref={textAreaRef}
+                ref={textAreaRef} 
                 rows={1} 
                 value={inputText} 
                 onChange={(e) => setInputText(e.target.value)} 
                 onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())} 
-                placeholder={`Diskusi...`} 
-                className="flex-1 bg-transparent border-none outline-none py-3 px-1 md:p-3 lg:p-4 text-[14px] lg:text-[16px] font-medium resize-none max-h-48 custom-scrollbar placeholder:text-slate-600" 
+                placeholder="Diskusi..." 
+                className="flex-1 bg-transparent border-none outline-none p-3 text-[16px] md:text-[14px] resize-none max-h-40 custom-scrollbar" 
+                style={{ fontSize: '16px', WebkitTextSizeAdjust: '100%' }}
               />
-              <button onClick={startListening} className={`p-2.5 md:p-3 lg:p-4 rounded-2xl transition-all duration-300 ${isListening ? 'bg-red-500 text-white animate-pulse shadow-[0_0_25px_rgba(239,68,68,0.5)]' : 'text-slate-500 hover:bg-white/5 hover:text-red-500 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)]'}`}><Mic size={20} /></button>
-              <button onClick={handleSendMessage} disabled={isLoading} className="p-2.5 md:p-3 lg:p-5 bg-blue-600 text-white rounded-[18px] md:rounded-[20px] lg:rounded-[24px] flex items-center justify-center min-w-[50px] md:min-w-[55px] lg:min-w-[70px] transition-all active:scale-95 shadow-xl hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">{isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send size={20} />}</button>
+              <button onClick={handleMicClick} className={`p-3 rounded-2xl transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-slate-500'}`}><Mic size={20} /></button>
+              <button onClick={handleSendMessage} className="p-4 bg-blue-600 text-white rounded-[20px] shadow-xl"><Send size={20} /></button>
             </div>
-
-            <footer className="mt-4 md:mt-6 flex flex-wrap justify-center items-center gap-x-4 md:gap-x-6 gap-y-2 text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] text-white/20 transition-all hover:text-white/40">
-              <button onClick={() => setActiveModal('library')} className="hover:text-blue-500 transition-all">Library</button>
-              <button onClick={() => setActiveModal('tos')} className="hover:text-blue-500 transition-all">Terms</button>
-              <button onClick={() => setActiveModal('privacy')} className="hover:text-blue-500 transition-all">Privacy</button>
-              <div className="h-3 w-[1px] bg-white/10 hidden md:block" />
-              <button onClick={() => setActiveModal('feedback')} className="hover:text-blue-400 transition-all">Kritik & Saran</button>
-              <p className="w-full text-center mt-1 text-[8px] md:text-[9px] text-white/10 select-none tracking-[0.3em]">© 2026 GUUG LABS</p>
-            </footer>
           </div>
         </div>
       </main>
