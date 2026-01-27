@@ -229,10 +229,8 @@ export default function GuugieHyperFinalPage() {
   if (isLoadingSession) return <div className="flex h-screen w-full items-center justify-center bg-[#0B101A]"><Loader2 className="animate-spin text-blue-600" /></div>;
 
   return (
-    // FIX 1: Ubah h-screen jadi h-[100dvh] (Dynamic Viewport Height) biar gak ketutup Safari Bar
     <div className="flex h-[100dvh] bg-[#0B101A] text-slate-200 overflow-hidden font-sans">
       
-      {/* --- 🔒 MODAL PILIH ROLE (RESPONSIVE FIX) --- */}
       {isCategoryModalOpen && (
         <div className="fixed inset-0 z-[300] bg-[#0B101A] flex items-center justify-center p-4">
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -246,7 +244,7 @@ export default function GuugieHyperFinalPage() {
               <button onClick={() => lockCategory('MAHASISWA')} className="group relative p-6 md:p-10 bg-[#1E293B]/40 border border-white/5 rounded-[30px] md:rounded-[45px] hover:border-blue-500/50 transition-all hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                 <div className="w-16 h-16 md:w-20 md:h-20 bg-blue-600/10 rounded-3xl flex items-center justify-center mx-auto mb-4 md:mb-8 group-hover:bg-blue-600 group-hover:text-white transition-all text-blue-500 shadow-xl"><GraduationCap size={32} className="md:w-10 md:h-10"/></div>
-                <h3 className="font-black uppercase tracking-widest text-base md:text-lg mb-2 md:mb-3 text-white">Mahasiswa</h3>
+                <h3 className="font-black uppercase tracking-widest text-base md:text-lg mb-2 md:mb-3 text-white text-center">Mahasiswa</h3>
                 <p className="text-[10px] font-bold text-slate-500 uppercase leading-relaxed text-center">Riset & Sidang</p>
               </button>
               <button onClick={() => lockCategory('PELAJAR')} className="group relative p-6 md:p-10 bg-[#1E293B]/40 border border-white/5 rounded-[30px] md:rounded-[45px] hover:border-orange-500/50 transition-all hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] overflow-hidden">
@@ -275,7 +273,6 @@ export default function GuugieHyperFinalPage() {
         </div>
       )}
 
-      {/* --- 🛠️ MODAL CONTENT --- */}
       {activeModal === 'library' && <Modal title="Library Riset"><div className="space-y-4"><p className="font-bold text-white">Penyimpanan Terpusat</p><p>Kelola semua dokumen riset Anda di sini.</p></div></Modal>}
       {activeModal === 'tos' && <Modal title="Terms of Service"><div className="space-y-4"><p className="font-bold text-white">Ketentuan Penggunaan</p><p>Dilarang keras menggunakan AI ini untuk plagiarisme.</p></div></Modal>}
       {activeModal === 'privacy' && <Modal title="Privacy Policy"><div className="space-y-4"><p className="font-bold text-white">Keamanan Data</p><p>Privasi Anda adalah prioritas kami.</p></div></Modal>}
@@ -310,7 +307,6 @@ export default function GuugieHyperFinalPage() {
         </div>
       </aside>
 
-      {/* Overlay Sidebar di Mobile */}
       {isSidebarOpen && <div onClick={() => setIsSidebarOpen(false)} className="fixed inset-0 bg-black/50 z-[90] lg:hidden backdrop-blur-sm"></div>}
 
       <main className="flex-1 flex flex-col relative min-w-0 h-full overflow-hidden">
@@ -353,7 +349,10 @@ export default function GuugieHyperFinalPage() {
                 {messages.map((m, i) => (
                   <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4`}>
                     <div className={`max-w-[95%] lg:max-w-[85%] p-4 md:p-5 lg:p-7 rounded-[24px] md:rounded-[28px] lg:rounded-[36px] text-[13px] lg:text-[15px] border shadow-2xl ${m.role === 'user' ? 'bg-[#1E293B] border-white/5 rounded-tr-none' : 'bg-blue-600/5 border-blue-500/10 rounded-tl-none'}`}>
-                      <div className="prose prose-invert prose-sm lg:prose-base max-w-none text-slate-100 leading-relaxed md:leading-loose break-words prose-li:my-1 md:prose-li:my-3 prose-p:my-2 md:prose-p:my-4 prose-headings:text-blue-400 prose-strong:text-white"><ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown></div>
+                      {/* FIX: leading-[1.6] (Gak LDR), prose-li:my-0.5 (Rapet list-nya) */}
+                      <div className="prose prose-invert prose-sm lg:prose-base max-w-none text-slate-100 leading-[1.6] md:leading-[1.7] break-words prose-li:my-0.5 md:prose-li:my-2 prose-p:my-2 md:prose-p:my-3 prose-headings:text-blue-400 prose-strong:text-white">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -370,8 +369,8 @@ export default function GuugieHyperFinalPage() {
           </div>
         </div>
 
-        {/* FIX 2: Tambah pb-6 di sini biar ada jarak aman di bawah buat iPhone Swipe Bar */}
-        <div className="shrink-0 p-3 md:p-4 lg:p-8 pb-6 bg-gradient-to-t from-[#0B101A] via-[#0B101A] to-transparent">
+        {/* FIX: Padding bottom diperbesar buat iPhone Swipe Bar */}
+        <div className="shrink-0 p-3 md:p-4 lg:p-8 pb-8 md:pb-12 bg-gradient-to-t from-[#0B101A] via-[#0B101A] to-transparent">
           <div className="max-w-4xl mx-auto relative">
             {pendingFile && (
               <div className="absolute -top-24 left-0 w-full animate-in slide-in-from-bottom-2 duration-300 px-2">
@@ -415,16 +414,14 @@ export default function GuugieHyperFinalPage() {
               <button onClick={handleSendMessage} disabled={isLoading} className="p-2.5 md:p-3 lg:p-5 bg-blue-600 text-white rounded-[18px] md:rounded-[20px] lg:rounded-[24px] flex items-center justify-center min-w-[50px] md:min-w-[55px] lg:min-w-[70px] transition-all active:scale-95 shadow-xl hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">{isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send size={20} />}</button>
             </div>
 
-            {/* FIX 2: Footer compact, gak social distancing lagi */}
-            <footer className="mt-5 md:mt-8 flex flex-wrap justify-center items-center gap-x-5 md:gap-x-8 gap-y-2 text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] text-white/20 transition-all hover:text-white/40">
-            <button onClick={() => setActiveModal('library')} className="hover:text-blue-500 transition-all">Library</button>
-            <button onClick={() => setActiveModal('tos')} className="hover:text-blue-500 transition-all">Terms</button>
-            <button onClick={() => setActiveModal('privacy')} className="hover:text-blue-500 transition-all">Privacy</button>
-  
-            <div className="h-3 w-[1px] bg-white/10 hidden md:block" />
-  
-            <button onClick={() => setActiveModal('feedback')} className="hover:text-blue-400 transition-all">Kritik & Saran</button>
-            <p className="w-full text-center mt-2 text-[8px] md:text-[9px] text-white/10 select-none tracking-[0.3em]">© 2026 GUUG LABS</p>
+            {/* FIX: Footer Compact (Gap diperkecil, Margin atas diperkecil) */}
+            <footer className="mt-4 md:mt-6 flex flex-wrap justify-center items-center gap-x-4 md:gap-x-6 gap-y-2 text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] text-white/20 transition-all hover:text-white/40">
+              <button onClick={() => setActiveModal('library')} className="hover:text-blue-500 transition-all">Library</button>
+              <button onClick={() => setActiveModal('tos')} className="hover:text-blue-500 transition-all">Terms</button>
+              <button onClick={() => setActiveModal('privacy')} className="hover:text-blue-500 transition-all">Privacy</button>
+              <div className="h-3 w-[1px] bg-white/10 hidden md:block" />
+              <button onClick={() => setActiveModal('feedback')} className="hover:text-blue-400 transition-all">Kritik & Saran</button>
+              <p className="w-full text-center mt-1 text-[8px] md:text-[9px] text-white/10 select-none tracking-[0.3em]">© 2026 GUUG LABS</p>
             </footer>
           </div>
         </div>
