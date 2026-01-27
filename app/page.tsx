@@ -46,6 +46,7 @@ export default function GuugieHyperFinalPage() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const [isLoadingSession, setIsLoadingSession] = useState(true); 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
@@ -75,6 +76,24 @@ export default function GuugieHyperFinalPage() {
     setTimeout(() => setToastAlert(null), 4000);
   };
 
+  // FIX 2 & 5: Handler pilih chat agar scroll reset ke atas
+  const handleSelectChat = async (chatId: string) => {
+    setIsSidebarOpen(false);
+    if (currentChatId === chatId) return;
+    
+    setCurrentChatId(chatId);
+    setMessages([]); // Clear untuk hindari layout shift pesan lama
+    
+    const { data } = await supabase.from("messages").select("*").eq("chat_id", chatId).order('created_at', { ascending: true });
+    if (data) {
+      setMessages(data as Message[]);
+      // Reset scroll position ke atas untuk chat lama
+      setTimeout(() => {
+        if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
+      }, 50);
+    }
+  };
+
   useEffect(() => {
     if (isSidebarOpen) {
       document.body.style.overflow = 'hidden';
@@ -83,6 +102,16 @@ export default function GuugieHyperFinalPage() {
     }
     return () => { document.body.style.overflow = 'auto'; };
   }, [isSidebarOpen]);
+
+  // FIX SCROLL: Pisahkan logika scroll hanya untuk pesan baru
+  useEffect(() => {
+    if (messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (isLoading || lastMsg.role === 'assistant') {
+        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+  }, [messages, isLoading]);
 
   useEffect(() => {
     if (textAreaRef.current) {
@@ -103,9 +132,9 @@ export default function GuugieHyperFinalPage() {
         setUserCategory(category);
         setResearchMode(CATEGORY_MODES[category][0].id);
       }
-      const { data: profile = null } = await supabase.from("profiles").select("quota").eq("id", user.id).single();
+      const { data: profile } = await supabase.from("profiles").select("quota").eq("id", user.id).single();
       if (profile) setQuota(profile.quota);
-      const { data: chats = [] } = await supabase.from("chats").select("*").eq("user_id", user.id).order('created_at', { ascending: false });
+      const { data: chats } = await supabase.from("chats").select("*").eq("user_id", user.id).order('created_at', { ascending: false });
       if (chats) setHistory(chats);
       setIsLoadingSession(false);
     };
@@ -123,18 +152,6 @@ export default function GuugieHyperFinalPage() {
       triggerAlert("Gagal mengunci role.");
     }
   };
-
-  useEffect(() => {
-    if (currentChatId) {
-      const fetchMessages = async () => {
-        const { data = [] } = await supabase.from("messages").select("*").eq("chat_id", currentChatId).order('created_at', { ascending: true });
-        if (data) setMessages(data as Message[]);
-      };
-      fetchMessages();
-    }
-  }, [currentChatId, supabase]);
-
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isLoading]);
 
   const startListening = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -174,7 +191,7 @@ export default function GuugieHyperFinalPage() {
     
     try {
       if (!chatId) {
-        const { data: newChat = null } = await supabase.from("chats").insert([{ user_id: user.id, title: inputText.substring(0, 30) || pendingFile?.name.substring(0, 30) }]).select().single();
+        const { data: newChat } = await supabase.from("chats").insert([{ user_id: user.id, title: inputText.substring(0, 30) || pendingFile?.name.substring(0, 30) }]).select().single();
         if (newChat) { chatId = newChat.id; setCurrentChatId(chatId); setHistory([newChat, ...history]); }
       }
       let finalContent = inputText;
@@ -211,7 +228,7 @@ export default function GuugieHyperFinalPage() {
 
   const handleRenameChat = async (id: string) => {
     if (!editTitle.trim()) { setEditingChatId(null); return; }
-    const { error = null } = await supabase.from("chats").update({ title: editTitle }).eq("id", id);
+    const { error } = await supabase.from("chats").update({ title: editTitle }).eq("id", id);
     if (!error) {
       setHistory(history.map(c => c.id === id ? { ...c, title: editTitle } : c));
       setEditingChatId(null);
@@ -240,48 +257,7 @@ export default function GuugieHyperFinalPage() {
   return (
     <div className="flex h-[100dvh] bg-[#0B101A] text-slate-200 overflow-hidden font-sans">
       
-      {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-[300] bg-[#0B101A] flex items-center justify-center p-4">
-          <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] bg-blue-600/10 blur-[120px] rounded-full" />
-            <div className="absolute -bottom-[20%] -right-[10%] w-[50%] h-[50%] bg-purple-600/5 blur-[120px] rounded-full" />
-          </div>
-          <div className="w-full max-w-5xl text-center relative z-10 animate-in fade-in zoom-in duration-700">
-            <h2 className="text-3xl md:text-5xl lg:text-7xl font-black italic uppercase tracking-tighter mb-4 text-white drop-shadow-2xl">SIAPA ANDA?</h2>
-            <p className="text-[8px] md:text-xs font-black uppercase tracking-[0.3em] text-blue-500/60 mb-8 md:mb-16">PILIHAN INI PERMANEN UNTUK AKUN ANDA</p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8 px-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
-              <button onClick={() => lockCategory('MAHASISWA')} className="group relative p-6 md:p-10 bg-[#1E293B]/40 border border-white/5 rounded-[30px] md:rounded-[45px] hover:border-blue-500/50 transition-all hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="w-16 h-16 md:w-20 md:h-20 bg-blue-600/10 rounded-3xl flex items-center justify-center mx-auto mb-4 md:mb-8 group-hover:bg-blue-600 group-hover:text-white transition-all text-blue-500 shadow-xl"><GraduationCap size={32} className="md:w-10 md:h-10"/></div>
-                <h3 className="font-black uppercase tracking-widest text-base md:text-lg mb-2 md:mb-3 text-white text-center">Mahasiswa</h3>
-                <p className="text-[10px] font-bold text-slate-500 uppercase leading-relaxed text-center">Riset & Sidang</p>
-              </button>
-              <button onClick={() => lockCategory('PELAJAR')} className="group relative p-6 md:p-10 bg-[#1E293B]/40 border border-white/5 rounded-[30px] md:rounded-[45px] hover:border-orange-500/50 transition-all hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-orange-600/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="w-16 h-16 md:w-20 md:h-20 bg-orange-600/10 rounded-3xl flex items-center justify-center mx-auto mb-4 md:mb-8 group-hover:bg-orange-600 group-hover:text-white transition-all text-orange-500 shadow-xl"><School size={32} className="md:w-10 md:h-10"/></div>
-                <h3 className="font-black uppercase tracking-widest text-base md:text-lg mb-2 md:mb-3 text-white text-center">Pelajar</h3>
-                <p className="text-[10px] font-bold text-slate-500 uppercase leading-relaxed text-center">SD-SMA & SMK</p>
-              </button>
-              <button onClick={() => lockCategory('PROFESIONAL')} className="group relative p-6 md:p-10 bg-[#1E293B]/40 border border-white/5 rounded-[30px] md:rounded-[45px] hover:border-emerald-500/50 transition-all hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-emerald-600/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="w-16 h-16 md:w-20 md:h-20 bg-emerald-600/10 rounded-3xl flex items-center justify-center mx-auto mb-4 md:mb-8 group-hover:bg-emerald-600 group-hover:text-white transition-all text-emerald-500 shadow-xl"><Briefcase size={32} className="md:w-10 md:h-10"/></div>
-                <h3 className="font-black uppercase tracking-widest text-base md:text-lg mb-2 md:mb-3 text-white text-center">Profesional</h3>
-                <p className="text-[10px] font-bold text-slate-500 uppercase leading-relaxed text-center">Email & Meeting</p>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {toastAlert?.show && (
-        <div className="fixed top-8 left-4 right-4 lg:left-1/2 lg:-translate-x-1/2 z-[200] animate-in slide-in-from-top-4">
-          <div className="bg-[#1E293B] border border-blue-500/20 px-6 py-4 rounded-2xl flex items-center gap-4 shadow-2xl">
-            <AlertCircle className="text-blue-500" size={20} />
-            <p className="text-[11px] font-black uppercase tracking-widest leading-tight">{toastAlert.msg}</p>
-          </div>
-        </div>
-      )}
-
+      {/* --- SIDEBAR --- */}
       <aside className={`fixed lg:relative z-[100] h-[100dvh] lg:h-full top-0 left-0 transition-all duration-500 bg-[#0F172A] border-r border-white/5 flex flex-col ${isSidebarOpen ? "w-72 shadow-2xl translate-x-0" : "w-72 -translate-x-full lg:w-0 lg:translate-x-0 overflow-hidden"}`}>
         <div className="w-72 flex flex-col h-full p-6 shrink-0">
           <button onClick={() => {setCurrentChatId(null); setMessages([]); setIsSidebarOpen(false);}} className="w-full flex items-center justify-center gap-3 bg-blue-600 p-4 rounded-2xl font-black text-[10px] uppercase shadow-xl active:scale-95 transition-all">
@@ -297,7 +273,7 @@ export default function GuugieHyperFinalPage() {
                     <button onClick={() => handleRenameChat(chat.id)} className="text-blue-500"><Check size={14} /></button>
                   </div>
                 ) : (
-                  <button onClick={() => {setCurrentChatId(chat.id); setIsSidebarOpen(false);}} className={`flex-1 text-left p-4 rounded-xl text-[11px] border transition-all font-bold ${currentChatId === chat.id ? 'bg-blue-600/10 border-blue-500/50 text-blue-400' : 'bg-white/5 border-transparent hover:border-white/10'}`}>
+                  <button onClick={() => handleSelectChat(chat.id)} className={`flex-1 text-left p-4 rounded-xl text-[11px] border transition-all font-bold ${currentChatId === chat.id ? 'bg-blue-600/10 border-blue-500/50 text-blue-400' : 'bg-white/5 border-transparent hover:border-white/10'}`}>
                     <span className="truncate w-32 inline-block">{chat.title}</span>
                   </button>
                 )}
@@ -341,8 +317,13 @@ export default function GuugieHyperFinalPage() {
           </div>
         </header>
 
+        {/* --- CHAT AREA --- */}
         <div className="flex-1 min-h-0 relative overflow-hidden">
-          <div className="absolute inset-0 overflow-y-auto custom-scrollbar touch-pan-y overscroll-contain scroll-smooth">
+          <div 
+            ref={scrollContainerRef}
+            key={`chat-container-${currentChatId || 'new'}`} // FIX 5: Unik per chat agar state scroll reset
+            className="absolute inset-0 overflow-y-auto custom-scrollbar touch-pan-y overscroll-contain scroll-smooth"
+          >
             <div className="max-w-4xl mx-auto p-4 lg:p-8 flex flex-col items-center">
               {messages.length === 0 ? (
                 <div className="mt-10 md:mt-20 text-center max-w-xl animate-in fade-in slide-in-from-bottom-8 duration-1000">
@@ -353,8 +334,8 @@ export default function GuugieHyperFinalPage() {
                 <div className="w-full space-y-4 md:space-y-6 pb-32">
                   {messages.map((m, i) => (
                     <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4`}>
-                      {/* FIX: max-w-[88%] biar "fit" dan gak terlalu mepet pinggir di HP */}
                       <div className={`max-w-[88%] lg:max-w-[80%] p-3 md:p-5 lg:p-7 rounded-[24px] md:rounded-[28px] lg:rounded-[36px] text-[13px] lg:text-[15px] border shadow-2xl ${m.role === 'user' ? 'bg-[#1E293B] border-white/5 rounded-tr-none' : 'bg-blue-600/5 border-blue-500/10 rounded-tl-none'}`}>
+                        {/* NUCLEAR ANTI-LDR STAY: !prose-p:m-0 */}
                         <div className="prose prose-invert prose-sm lg:prose-base max-w-none text-slate-100 leading-tight md:leading-relaxed break-words !prose-p:m-0 !prose-li:m-0 [&_p]:!m-0 [&_p]:!mb-1 [&_blockquote]:!my-1 [&_ul]:!my-1 [&_li]:!my-0 prose-headings:text-blue-400 prose-strong:text-white">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                         </div>
@@ -375,18 +356,9 @@ export default function GuugieHyperFinalPage() {
           </div>
         </div>
 
+        {/* --- INPUT AREA --- */}
         <div className="shrink-0 p-3 md:p-4 lg:p-8 pb-10 md:pb-12 bg-gradient-to-t from-[#0B101A] via-[#0B101A] to-transparent z-40">
           <div className="max-w-4xl mx-auto relative">
-            {pendingFile && (
-              <div className="absolute -top-24 left-0 w-full animate-in slide-in-from-bottom-2 duration-300 px-2">
-                <div className="bg-[#1E293B] border border-blue-500/30 p-4 rounded-2xl flex items-center gap-4 shadow-2xl backdrop-blur-xl">
-                  <div className="p-2 bg-blue-600/20 rounded-lg text-blue-500"><FileText size={20} /></div>
-                  <div className="flex-1 min-w-0"><p className="text-[10px] font-black uppercase text-slate-200 truncate">{pendingFile.name}</p><p className="text-[8px] font-bold text-blue-500 uppercase tracking-widest mt-0.5">Siap Dikirim Ke Awan</p></div>
-                  <button onClick={() => setPendingFile(null)} className="p-2 hover:bg-white/10 rounded-lg text-slate-400"><X size={16} /></button>
-                </div>
-              </div>
-            )}
-            
             <div className="absolute -top-10 md:-top-12 left-2 z-50">
               <button onClick={() => setIsModeMenuOpen(!isModeMenuOpen)} className="flex items-center gap-3 px-3 py-1.5 md:px-4 md:py-2 bg-[#1E293B] border border-white/10 rounded-xl text-[9px] font-black uppercase shadow-xl hover:border-blue-500/30 transition-all">
                 <span className="text-blue-500">{researchMode}</span><ChevronDown size={12} className={`transition-transform duration-300 ${isModeMenuOpen ? 'rotate-180' : ''}`} />
