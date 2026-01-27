@@ -297,7 +297,6 @@ export default function GuugieHyperFinalPage() {
                     <span className="truncate w-32 inline-block">{chat.title}</span>
                   </button>
                 )}
-                {/* FIX: Tombol dipaksa muncul di mobile (Gak nunggu hover) */}
                 <div className="flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all">
                   <button onClick={() => {setEditingChatId(chat.id); setEditTitle(chat.title);}} className="p-2 text-slate-500 hover:bg-white/10 rounded-lg transition-all"><Pencil size={14} /></button>
                   <button onClick={(e) => {e.stopPropagation(); handleDeleteChat(chat.id);}} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-all"><Trash2 size={14} /></button>
@@ -350,8 +349,8 @@ export default function GuugieHyperFinalPage() {
                 {messages.map((m, i) => (
                   <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4`}>
                     <div className={`max-w-[95%] lg:max-w-[85%] p-4 md:p-5 lg:p-7 rounded-[24px] md:rounded-[28px] lg:rounded-[36px] text-[13px] lg:text-[15px] border shadow-2xl ${m.role === 'user' ? 'bg-[#1E293B] border-white/5 rounded-tr-none' : 'bg-blue-600/5 border-blue-500/10 rounded-tl-none'}`}>
-                      {/* FIX: leading-[1.4] & prose-p:my-1 buat bantai LDR di HP */}
-                      <div className="prose prose-invert prose-sm lg:prose-base max-w-none text-slate-100 leading-[1.4] md:leading-loose break-words prose-li:my-0.5 md:prose-li:my-2 prose-p:my-1 md:prose-p:my-4 prose-blockquote:my-2 md:prose-blockquote:my-6 prose-headings:text-blue-400 prose-strong:text-white">
+                      {/* FIX: Bantai LDR dengan prose-p:my-0 dan prose-li:my-0 */}
+                      <div className="prose prose-invert prose-sm lg:prose-base max-w-none text-slate-100 leading-[1.3] md:leading-relaxed break-words prose-p:my-0 prose-li:my-0 prose-blockquote:my-1 md:prose-blockquote:my-4 prose-headings:text-blue-400 prose-strong:text-white">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                       </div>
                     </div>
@@ -370,8 +369,7 @@ export default function GuugieHyperFinalPage() {
           </div>
         </div>
 
-        {/* FIX: Padding bottom diperbesar buat iPhone Swipe Bar (pb-12) */}
-        <div className="shrink-0 p-3 md:p-4 lg:p-8 pb-12 md:pb-12 bg-gradient-to-t from-[#0B101A] via-[#0B101A] to-transparent">
+        <div className="shrink-0 p-3 md:p-4 lg:p-8 pb-10 md:pb-12 bg-gradient-to-t from-[#0B101A] via-[#0B101A] to-transparent">
           <div className="max-w-4xl mx-auto relative">
             {pendingFile && (
               <div className="absolute -top-24 left-0 w-full animate-in slide-in-from-bottom-2 duration-300 px-2">
