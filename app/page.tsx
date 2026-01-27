@@ -202,7 +202,7 @@ export default function GuugieHyperFinalPage() {
 
   const handleRenameChat = async (id: string) => {
     if (!editTitle.trim()) { setEditingChatId(null); return; }
-    const { error } = await supabase.from("chats").update({ title: editTitle }).eq("id", id);
+    const { error = null } = await supabase.from("chats").update({ title: editTitle }).eq("id", id);
     if (!error) {
       setHistory(history.map(c => c.id === id ? { ...c, title: editTitle } : c));
       setEditingChatId(null);
@@ -337,7 +337,8 @@ export default function GuugieHyperFinalPage() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 lg:p-8 custom-scrollbar scroll-smooth">
+        {/* FIX SCROLL: touch-pan-y, overscroll-contain, h-full, min-h-0 */}
+        <div className="flex-1 overflow-y-auto p-4 lg:p-8 custom-scrollbar scroll-smooth overscroll-contain touch-pan-y min-h-0">
           <div className="max-w-4xl mx-auto space-y-8 pb-10 flex flex-col items-center">
             {messages.length === 0 ? (
               <div className="mt-10 md:mt-20 text-center max-w-xl animate-in fade-in slide-in-from-bottom-8 duration-1000">
@@ -345,12 +346,12 @@ export default function GuugieHyperFinalPage() {
                 <p className="text-[10px] lg:text-sm text-slate-500 font-black uppercase tracking-[0.4em] mt-4 md:mt-6">Siap Bekerja Sebagai {userCategory}?</p>
               </div>
             ) : (
-              <div className="w-full space-y-6 md:space-y-8 pb-20">
+              <div className="w-full space-y-4 md:space-y-6 pb-20">
                 {messages.map((m, i) => (
                   <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4`}>
-                    <div className={`max-w-[95%] lg:max-w-[85%] p-4 md:p-5 lg:p-7 rounded-[24px] md:rounded-[28px] lg:rounded-[36px] text-[13px] lg:text-[15px] border shadow-2xl ${m.role === 'user' ? 'bg-[#1E293B] border-white/5 rounded-tr-none' : 'bg-blue-600/5 border-blue-500/10 rounded-tl-none'}`}>
-                      {/* FIX: Bantai LDR dengan prose-p:my-0 dan prose-li:my-0 */}
-                      <div className="prose prose-invert prose-sm lg:prose-base max-w-none text-slate-100 leading-[1.3] md:leading-relaxed break-words prose-p:my-0 prose-li:my-0 prose-blockquote:my-1 md:prose-blockquote:my-4 prose-headings:text-blue-400 prose-strong:text-white">
+                    <div className={`max-w-[95%] lg:max-w-[85%] p-3 md:p-5 lg:p-7 rounded-[24px] md:rounded-[28px] lg:rounded-[36px] text-[13px] lg:text-[15px] border shadow-2xl ${m.role === 'user' ? 'bg-[#1E293B] border-white/5 rounded-tr-none' : 'bg-blue-600/5 border-blue-500/10 rounded-tl-none'}`}>
+                      {/* BANTAI LDR NUCLEAR: Pake selector [&_p]:!m-0 biar gak bisa nolak lagi */}
+                      <div className="prose prose-invert prose-sm lg:prose-base max-w-none text-slate-100 leading-tight md:leading-relaxed break-words !prose-p:m-0 !prose-li:m-0 [&_p]:!m-0 [&_p]:!mt-0 [&_p]:!mb-1 [&_blockquote]:!mt-1 [&_blockquote]:!mb-1 [&_ul]:!my-1 [&_li]:!my-0 prose-headings:text-blue-400 prose-strong:text-white">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                       </div>
                     </div>
