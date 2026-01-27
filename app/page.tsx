@@ -229,7 +229,8 @@ export default function GuugieHyperFinalPage() {
   if (isLoadingSession) return <div className="flex h-screen w-full items-center justify-center bg-[#0B101A]"><Loader2 className="animate-spin text-blue-600" /></div>;
 
   return (
-    <div className="flex h-screen bg-[#0B101A] text-slate-200 overflow-hidden font-sans">
+    // FIX 1: Ubah h-screen jadi h-[100dvh] (Dynamic Viewport Height) biar gak ketutup Safari Bar
+    <div className="flex h-[100dvh] bg-[#0B101A] text-slate-200 overflow-hidden font-sans">
       
       {/* --- 🔒 MODAL PILIH ROLE (RESPONSIVE FIX) --- */}
       {isCategoryModalOpen && (
@@ -239,11 +240,9 @@ export default function GuugieHyperFinalPage() {
             <div className="absolute -bottom-[20%] -right-[10%] w-[50%] h-[50%] bg-purple-600/5 blur-[120px] rounded-full" />
           </div>
           <div className="w-full max-w-5xl text-center relative z-10 animate-in fade-in zoom-in duration-700">
-            {/* FIX: Font size 3xl di HP, 7xl di Laptop */}
             <h2 className="text-3xl md:text-5xl lg:text-7xl font-black italic uppercase tracking-tighter mb-4 text-white drop-shadow-2xl">SIAPA ANDA?</h2>
             <p className="text-[8px] md:text-xs font-black uppercase tracking-[0.3em] text-blue-500/60 mb-8 md:mb-16">PILIHAN INI PERMANEN UNTUK AKUN ANDA</p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8 px-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
-              {/* FIX: Button padding p-6 di HP */}
               <button onClick={() => lockCategory('MAHASISWA')} className="group relative p-6 md:p-10 bg-[#1E293B]/40 border border-white/5 rounded-[30px] md:rounded-[45px] hover:border-blue-500/50 transition-all hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                 <div className="w-16 h-16 md:w-20 md:h-20 bg-blue-600/10 rounded-3xl flex items-center justify-center mx-auto mb-4 md:mb-8 group-hover:bg-blue-600 group-hover:text-white transition-all text-blue-500 shadow-xl"><GraduationCap size={32} className="md:w-10 md:h-10"/></div>
@@ -371,7 +370,8 @@ export default function GuugieHyperFinalPage() {
           </div>
         </div>
 
-        <div className="shrink-0 p-3 md:p-4 lg:p-8 bg-gradient-to-t from-[#0B101A] via-[#0B101A] to-transparent">
+        {/* FIX 2: Tambah pb-6 di sini biar ada jarak aman di bawah buat iPhone Swipe Bar */}
+        <div className="shrink-0 p-3 md:p-4 lg:p-8 pb-6 bg-gradient-to-t from-[#0B101A] via-[#0B101A] to-transparent">
           <div className="max-w-4xl mx-auto relative">
             {pendingFile && (
               <div className="absolute -top-24 left-0 w-full animate-in slide-in-from-bottom-2 duration-300 px-2">
@@ -399,7 +399,6 @@ export default function GuugieHyperFinalPage() {
               )}
             </div>
 
-            {/* FIX: Padding lebih compact (p-2 di HP) biar tombol muat */}
             <div className="bg-[#1E293B] border border-white/10 rounded-[24px] md:rounded-[28px] lg:rounded-[38px] p-2 md:p-2.5 lg:p-3.5 shadow-2xl focus-within:ring-2 focus-within:ring-blue-500/20 transition-all flex items-end gap-1 md:gap-3 backdrop-blur-sm">
               <button onClick={() => fileInputRef.current?.click()} disabled={isUploading || !!pendingFile} className="p-2.5 md:p-3 lg:p-4 text-slate-500 hover:bg-white/5 rounded-2xl transition-all active:scale-90">{isUploading ? <Loader2 size={20} className="animate-spin text-blue-500" /> : <Paperclip size={20} />}</button>
               <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
@@ -416,7 +415,6 @@ export default function GuugieHyperFinalPage() {
               <button onClick={handleSendMessage} disabled={isLoading} className="p-2.5 md:p-3 lg:p-5 bg-blue-600 text-white rounded-[18px] md:rounded-[20px] lg:rounded-[24px] flex items-center justify-center min-w-[50px] md:min-w-[55px] lg:min-w-[70px] transition-all active:scale-95 shadow-xl hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">{isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send size={20} />}</button>
             </div>
 
-            {/* FIX: Gap lebih kecil di footer HP */}
             <footer className="mt-6 md:mt-10 flex flex-wrap justify-center items-center gap-x-4 md:gap-x-10 gap-y-3 md:gap-y-5 text-[8px] md:text-[9px] lg:text-[11px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] text-white/30">
               <button onClick={() => setActiveModal('library')} className="flex items-center gap-1.5 md:gap-2.5 hover:text-blue-500 transition-all group"><BookOpen size={14} className="group-hover:scale-110 transition-transform"/> Library</button>
               <button onClick={() => setActiveModal('tos')} className="flex items-center gap-1.5 md:gap-2.5 hover:text-blue-500 transition-all group"><ShieldCheck size={14} className="group-hover:scale-110 transition-transform"/> Terms</button>
