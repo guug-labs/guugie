@@ -2,6 +2,7 @@ import Groq from "groq-sdk";
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+export const runtime = 'edge';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
