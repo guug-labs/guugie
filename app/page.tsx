@@ -297,9 +297,10 @@ export default function GuugieHyperFinalPage() {
                     <span className="truncate w-32 inline-block">{chat.title}</span>
                   </button>
                 )}
-                <div className="flex gap-1">
-                  <button onClick={() => {setEditingChatId(chat.id); setEditTitle(chat.title);}} className="opacity-0 group-hover:opacity-100 p-2 text-slate-500 hover:bg-white/10 rounded-lg transition-all"><Pencil size={14} /></button>
-                  <button onClick={(e) => {e.stopPropagation(); handleDeleteChat(chat.id);}} className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-all"><Trash2 size={14} /></button>
+                {/* FIX: Tombol dipaksa muncul di mobile (Gak nunggu hover) */}
+                <div className="flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all">
+                  <button onClick={() => {setEditingChatId(chat.id); setEditTitle(chat.title);}} className="p-2 text-slate-500 hover:bg-white/10 rounded-lg transition-all"><Pencil size={14} /></button>
+                  <button onClick={(e) => {e.stopPropagation(); handleDeleteChat(chat.id);}} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-all"><Trash2 size={14} /></button>
                 </div>
               </div>
             ))}
@@ -349,8 +350,8 @@ export default function GuugieHyperFinalPage() {
                 {messages.map((m, i) => (
                   <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4`}>
                     <div className={`max-w-[95%] lg:max-w-[85%] p-4 md:p-5 lg:p-7 rounded-[24px] md:rounded-[28px] lg:rounded-[36px] text-[13px] lg:text-[15px] border shadow-2xl ${m.role === 'user' ? 'bg-[#1E293B] border-white/5 rounded-tr-none' : 'bg-blue-600/5 border-blue-500/10 rounded-tl-none'}`}>
-                      {/* FIX: leading-[1.6] (Gak LDR), prose-li:my-0.5 (Rapet list-nya) */}
-                      <div className="prose prose-invert prose-sm lg:prose-base max-w-none text-slate-100 leading-[1.6] md:leading-[1.7] break-words prose-li:my-0.5 md:prose-li:my-2 prose-p:my-2 md:prose-p:my-3 prose-headings:text-blue-400 prose-strong:text-white">
+                      {/* FIX: leading-[1.4] & prose-p:my-1 buat bantai LDR di HP */}
+                      <div className="prose prose-invert prose-sm lg:prose-base max-w-none text-slate-100 leading-[1.4] md:leading-loose break-words prose-li:my-0.5 md:prose-li:my-2 prose-p:my-1 md:prose-p:my-4 prose-blockquote:my-2 md:prose-blockquote:my-6 prose-headings:text-blue-400 prose-strong:text-white">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                       </div>
                     </div>
@@ -369,8 +370,8 @@ export default function GuugieHyperFinalPage() {
           </div>
         </div>
 
-        {/* FIX: Padding bottom diperbesar buat iPhone Swipe Bar */}
-        <div className="shrink-0 p-3 md:p-4 lg:p-8 pb-8 md:pb-12 bg-gradient-to-t from-[#0B101A] via-[#0B101A] to-transparent">
+        {/* FIX: Padding bottom diperbesar buat iPhone Swipe Bar (pb-12) */}
+        <div className="shrink-0 p-3 md:p-4 lg:p-8 pb-12 md:pb-12 bg-gradient-to-t from-[#0B101A] via-[#0B101A] to-transparent">
           <div className="max-w-4xl mx-auto relative">
             {pendingFile && (
               <div className="absolute -top-24 left-0 w-full animate-in slide-in-from-bottom-2 duration-300 px-2">
@@ -414,7 +415,6 @@ export default function GuugieHyperFinalPage() {
               <button onClick={handleSendMessage} disabled={isLoading} className="p-2.5 md:p-3 lg:p-5 bg-blue-600 text-white rounded-[18px] md:rounded-[20px] lg:rounded-[24px] flex items-center justify-center min-w-[50px] md:min-w-[55px] lg:min-w-[70px] transition-all active:scale-95 shadow-xl hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">{isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send size={20} />}</button>
             </div>
 
-            {/* FIX: Footer Compact (Gap diperkecil, Margin atas diperkecil) */}
             <footer className="mt-4 md:mt-6 flex flex-wrap justify-center items-center gap-x-4 md:gap-x-6 gap-y-2 text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] text-white/20 transition-all hover:text-white/40">
               <button onClick={() => setActiveModal('library')} className="hover:text-blue-500 transition-all">Library</button>
               <button onClick={() => setActiveModal('tos')} className="hover:text-blue-500 transition-all">Terms</button>
