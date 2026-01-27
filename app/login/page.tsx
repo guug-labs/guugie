@@ -18,9 +18,9 @@ export default function LoginPage() {
     if (error) alert("Error login: " + error.message);
   };
 
+  // FIX: Ganti min-h-screen jadi min-h-[100dvh] biar center akurat di HP
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#0B101A] p-4 font-black text-slate-200">
-      {/* FIX: Padding p-6 di HP, p-12 di Laptop (md:p-12) */}
+    <div className="flex min-h-[100dvh] items-center justify-center bg-[#0B101A] p-4 font-black text-slate-200">
       <div className="w-full max-w-sm space-y-8 md:space-y-10 bg-[#111827] p-6 md:p-12 rounded-[30px] md:rounded-[40px] border border-white/5 shadow-2xl text-center">
         
         <div className="flex flex-col items-center space-y-4">
@@ -34,7 +34,6 @@ export default function LoginPage() {
           </div>
           
           <div className="space-y-1">
-            {/* FIX: Font size 4xl di HP, 5xl di Laptop */}
             <h2 className="text-4xl md:text-5xl font-black text-white uppercase tracking-tighter italic">Guugie</h2>
             <p className="text-blue-500 text-[9px] md:text-[10px] uppercase tracking-[0.4em] font-black opacity-80">by GUUG Labs</p>
           </div>

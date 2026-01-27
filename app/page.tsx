@@ -281,7 +281,7 @@ export default function GuugieHyperFinalPage() {
       {activeModal === 'privacy' && <Modal title="Privacy Policy"><div className="space-y-4"><p className="font-bold text-white">Keamanan Data</p><p>Privasi Anda adalah prioritas kami.</p></div></Modal>}
       {activeModal === 'feedback' && <Modal title="Kritik & Saran"><div className="space-y-6"><div className="bg-white/5 p-6 rounded-2xl border border-white/10"><p className="text-[10px] font-black uppercase text-blue-500 mb-2">Hubungi Kami Melalui Email</p><p className="text-lg font-bold">guuglabs@gmail.com</p></div></div></Modal>}
 
-      <aside className={`fixed lg:relative z-50 h-full transition-all duration-500 bg-[#0F172A] border-r border-white/5 flex flex-col ${isSidebarOpen ? "w-72 shadow-2xl translate-x-0" : "w-72 -translate-x-full lg:w-0 lg:translate-x-0 overflow-hidden"}`}>
+      <aside className={`fixed lg:relative z-[100] h-full transition-all duration-500 bg-[#0F172A] border-r border-white/5 flex flex-col ${isSidebarOpen ? "w-72 shadow-2xl translate-x-0" : "w-72 -translate-x-full lg:w-0 lg:translate-x-0 overflow-hidden"}`}>
         <div className="w-72 flex flex-col h-full p-6 shrink-0">
           <button onClick={() => {setCurrentChatId(null); setMessages([]); setIsSidebarOpen(false);}} className="w-full flex items-center justify-center gap-3 bg-blue-600 p-4 rounded-2xl font-black text-[10px] uppercase shadow-xl active:scale-95 transition-all">
             <Plus size={16} /> New Chat
@@ -311,7 +311,7 @@ export default function GuugieHyperFinalPage() {
       </aside>
 
       {/* Overlay Sidebar di Mobile */}
-      {isSidebarOpen && <div onClick={() => setIsSidebarOpen(false)} className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm"></div>}
+      {isSidebarOpen && <div onClick={() => setIsSidebarOpen(false)} className="fixed inset-0 bg-black/50 z-[90] lg:hidden backdrop-blur-sm"></div>}
 
       <main className="flex-1 flex flex-col relative min-w-0 h-full overflow-hidden">
         <header className="shrink-0 flex items-center justify-between p-4 lg:p-6 bg-[#0B101A]/80 backdrop-blur-xl border-b border-white/5 z-40">
