@@ -75,7 +75,6 @@ export default function GuugieHyperFinalPage() {
     setTimeout(() => setToastAlert(null), 4000);
   };
 
-  // FIX 5: Prevent body scroll ketika sidebar open
   useEffect(() => {
     if (isSidebarOpen) {
       document.body.style.overflow = 'hidden';
@@ -283,12 +282,6 @@ export default function GuugieHyperFinalPage() {
         </div>
       )}
 
-      {activeModal === 'library' && <Modal title="Library Riset"><div className="space-y-4"><p className="font-bold text-white">Penyimpanan Terpusat</p><p>Kelola semua dokumen riset Anda di sini.</p></div></Modal>}
-      {activeModal === 'tos' && <Modal title="Terms of Service"><div className="space-y-4"><p className="font-bold text-white">Ketentuan Penggunaan</p><p>Dilarang keras menggunakan AI ini untuk plagiarisme.</p></div></Modal>}
-      {activeModal === 'privacy' && <Modal title="Privacy Policy"><div className="space-y-4"><p className="font-bold text-white">Keamanan Data</p><p>Privasi Anda adalah prioritas kami.</p></div></Modal>}
-      {activeModal === 'feedback' && <Modal title="Kritik & Saran"><div className="space-y-6"><div className="bg-white/5 p-6 rounded-2xl border border-white/10"><p className="text-[10px] font-black uppercase text-blue-500 mb-2">Hubungi Kami Melalui Email</p><p className="text-lg font-bold">guuglabs@gmail.com</p></div></div></Modal>}
-
-      {/* FIX 3: Sidebar Height & Position */}
       <aside className={`fixed lg:relative z-[100] h-[100dvh] lg:h-full top-0 left-0 transition-all duration-500 bg-[#0F172A] border-r border-white/5 flex flex-col ${isSidebarOpen ? "w-72 shadow-2xl translate-x-0" : "w-72 -translate-x-full lg:w-0 lg:translate-x-0 overflow-hidden"}`}>
         <div className="w-72 flex flex-col h-full p-6 shrink-0">
           <button onClick={() => {setCurrentChatId(null); setMessages([]); setIsSidebarOpen(false);}} className="w-full flex items-center justify-center gap-3 bg-blue-600 p-4 rounded-2xl font-black text-[10px] uppercase shadow-xl active:scale-95 transition-all">
@@ -320,7 +313,6 @@ export default function GuugieHyperFinalPage() {
 
       {isSidebarOpen && <div onClick={() => setIsSidebarOpen(false)} className="fixed inset-0 bg-black/50 z-[90] lg:hidden backdrop-blur-sm"></div>}
 
-      {/* FIX 4: Main Layout Structure */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative h-full">
         <header className="shrink-0 flex items-center justify-between p-4 lg:p-6 bg-[#0B101A]/80 backdrop-blur-xl border-b border-white/5 z-40">
           <div className="flex items-center gap-3 lg:gap-6">
@@ -349,7 +341,6 @@ export default function GuugieHyperFinalPage() {
           </div>
         </header>
 
-        {/* FIX 4: Chat Area Wrapper - Solusi Scroll Macet & LDR */}
         <div className="flex-1 min-h-0 relative overflow-hidden">
           <div className="absolute inset-0 overflow-y-auto custom-scrollbar touch-pan-y overscroll-contain scroll-smooth">
             <div className="max-w-4xl mx-auto p-4 lg:p-8 flex flex-col items-center">
@@ -362,8 +353,8 @@ export default function GuugieHyperFinalPage() {
                 <div className="w-full space-y-4 md:space-y-6 pb-32">
                   {messages.map((m, i) => (
                     <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4`}>
-                      <div className={`max-w-[95%] lg:max-w-[85%] p-3 md:p-5 lg:p-7 rounded-[24px] md:rounded-[28px] lg:rounded-[36px] text-[13px] lg:text-[15px] border shadow-2xl ${m.role === 'user' ? 'bg-[#1E293B] border-white/5 rounded-tr-none' : 'bg-blue-600/5 border-blue-500/10 rounded-tl-none'}`}>
-                        {/* BANTAI LDR NUCLEAR: Gabungan !prose-p:m-0 dan leading-tight */}
+                      {/* FIX: max-w-[88%] biar "fit" dan gak terlalu mepet pinggir di HP */}
+                      <div className={`max-w-[88%] lg:max-w-[80%] p-3 md:p-5 lg:p-7 rounded-[24px] md:rounded-[28px] lg:rounded-[36px] text-[13px] lg:text-[15px] border shadow-2xl ${m.role === 'user' ? 'bg-[#1E293B] border-white/5 rounded-tr-none' : 'bg-blue-600/5 border-blue-500/10 rounded-tl-none'}`}>
                         <div className="prose prose-invert prose-sm lg:prose-base max-w-none text-slate-100 leading-tight md:leading-relaxed break-words !prose-p:m-0 !prose-li:m-0 [&_p]:!m-0 [&_p]:!mb-1 [&_blockquote]:!my-1 [&_ul]:!my-1 [&_li]:!my-0 prose-headings:text-blue-400 prose-strong:text-white">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                         </div>
@@ -384,7 +375,6 @@ export default function GuugieHyperFinalPage() {
           </div>
         </div>
 
-        {/* FIX 4: Input Area tetep di bawah */}
         <div className="shrink-0 p-3 md:p-4 lg:p-8 pb-10 md:pb-12 bg-gradient-to-t from-[#0B101A] via-[#0B101A] to-transparent z-40">
           <div className="max-w-4xl mx-auto relative">
             {pendingFile && (
