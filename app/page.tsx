@@ -421,7 +421,7 @@ export default function GuugieHyperFinalPage() {
               <div className="w-full mb-3 p-4 bg-[#1E293B] border border-blue-500/30 rounded-2xl flex items-center gap-4 shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom-2">
                 <FileText className="text-blue-500" size={18} />
                 <p className="text-[10px] font-bold uppercase truncate flex-1">{pendingFile.name}</p>
-                <button onClick={() => setPendingFile(null)}><X size={16} /></button>
+                <button onClick={() => { setPendingFile(null); setExtractedText(""); }}><X size={16} /></button>
               </div>
             )}
             
