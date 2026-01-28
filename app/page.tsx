@@ -8,30 +8,23 @@ import remarkGfm from 'remark-gfm';
 import mammoth from "mammoth"; 
 import { 
   Plus, Send, Mic, Paperclip, User, X, Loader2, Trash2,
-  Check, Pencil, LogOut, PanelLeftOpen, FileText, ChevronDown, 
-  ShieldCheck, Info, Zap, MessageSquare, Globe
+  Pencil, LogOut, PanelLeftOpen, FileText, ChevronDown, Zap
 } from "lucide-react";
 
-// --- KATEGORI AI (GUUGIE STYLE) ---
 const GUUGIE_MODELS = {
-  "QUICK": { id: "xiaomi/mimo-v2-flash", label: "Guugie Cepat", points: 0, sub: "Respon instan", loading: "Guugie sedang berpikir..." },
-  "REASON": { id: "deepseek/deepseek-v3.2", label: "Guugie Nalar", points: 5, sub: "Analisis mendalam", loading: "Guugie mencari argumen..." },
-  "PRO": { id: "google/gemini-2.5-flash", label: "Guugie Pro", points: 10, sub: "Riset & File", loading: "Guugie memproses dokumen..." }
+  "QUICK": { id: "xiaomi/mimo-v2-flash", label: "Guugie Cepat", points: 0, sub: "Respon instan", loading: "Mencari jawaban..." },
+  "REASON": { id: "deepseek/deepseek-v3.2", label: "Guugie Nalar", points: 5, sub: "Deep Reasoning", loading: "Sedang bernalar..." },
+  "PRO": { id: "google/gemini-2.5-flash", label: "Guugie Pro", points: 10, sub: "Riset & File", loading: "Memproses dokumen..." }
 } as const;
 
-export default function GuugieUltraMasterPage() {
+export default function GuugieDeepFinalPage() {
   const router = useRouter();
-  const supabase = useMemo(() => createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  ), []);
+  const supabase = useMemo(() => createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!), []);
 
-  // --- REFS ---
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- STATES ---
   const [messages, setMessages] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
@@ -47,16 +40,13 @@ export default function GuugieUltraMasterPage() {
   const [pendingFile, setPendingFile] = useState<any>(null);
   const [extractedText, setExtractedText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
-  const [modal, setModal] = useState<string | null>(null);
+  const [modal, setModal] = useState<{type: 'error' | 'info', msg: string} | null>(null);
 
-  // --- LOAD DATA ---
   const loadData = useCallback(async (uid: string) => {
-    const [{ data: hist }, { data: prof }] = await Promise.all([
-      supabase.from("chats").select("*").eq("user_id", uid).order("created_at", { ascending: false }),
-      supabase.from("profiles").select("quota").eq("id", uid).single()
-    ]);
-    if (hist) setHistory(hist);
+    const { data: prof } = await supabase.from("profiles").select("quota").eq("id", uid).single();
+    const { data: hist } = await supabase.from("chats").select("*").eq("user_id", uid).order("created_at", { ascending: false });
     if (prof) setQuota(prof.quota);
+    if (hist) setHistory(hist);
   }, [supabase]);
 
   useEffect(() => {
@@ -80,21 +70,11 @@ export default function GuugieUltraMasterPage() {
     loadMsg();
   }, [currentChatId, supabase]);
 
-  useEffect(() => {
-    if (textAreaRef.current) {
-      textAreaRef.current.style.height = "auto";
-      textAreaRef.current.style.height = `${Math.min(textAreaRef.current.scrollHeight, 180)}px`;
-    }
-  }, [inputText]);
-
-  // --- ACTIONS ---
   const handleSendMessage = async () => {
     const model = GUUGIE_MODELS[selectedKasta];
     const isAdmin = user?.email === 'guuglabs@gmail.com';
-    
-    // ANTI-DUPLIKAT GUARD
     if (isLoading || (!inputText.trim() && !extractedText)) return;
-    if (!isAdmin && quota < model.points) return alert("Poin tidak cukup!");
+    if (!isAdmin && quota < model.points) return setModal({type: 'error', msg: 'Poin Habis! Tunggu reset jam 12 malem.'});
 
     setIsLoading(true);
     const msg = inputText;
@@ -119,115 +99,79 @@ export default function GuugieUltraMasterPage() {
       const data = await res.json();
       if (data.content) {
         setMessages(prev => [...prev, { role: "assistant", content: data.content }]);
-        loadData(user.id);
+        await loadData(user.id); 
       }
-    } catch (e) { alert("Sistem sibuk."); } finally {
+    } catch (e) { setModal({type: 'error', msg: 'Sistem Sibuk.'}); } finally {
       setIsLoading(false);
       setPendingFile(null);
       setExtractedText("");
     }
   };
 
-  const handleFileUpload = async (e: any) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setPendingFile(file);
-    if (file.name.endsWith(".docx")) {
-      const res = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
-      setExtractedText(res.value);
-    } else {
-      setExtractedText(await file.text());
-    }
-    setSelectedKasta("PRO");
-  };
-
-  if (isLoadingSession) return <div className="flex h-[100dvh] items-center justify-center bg-[#131314]"><Loader2 className="animate-spin text-blue-500" /></div>;
+  if (isLoadingSession) return <div className="flex h-[100dvh] items-center justify-center bg-[#0a0a0a]"><Loader2 className="animate-spin text-blue-500" /></div>;
 
   return (
-    <div className="flex h-[100dvh] bg-[#131314] text-[#e3e3e3] overflow-hidden font-sans">
+    <div className="flex h-[100dvh] bg-[#0a0a0a] text-[#e3e3e3] overflow-hidden">
       <style>{`
         * { font-family: 'Inter', sans-serif !important; -webkit-tap-highlight-color: transparent; }
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 10px; }
-        @media (max-width: 768px) { .prose { font-size: 14px; } }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .chat-container { height: calc(100dvh - 160px); }
+        @media (max-width: 768px) { .chat-container { height: calc(100dvh - 180px); } }
       `}</style>
 
-      {/* MODAL (TOS, PRIVACY, FEEDBACK) */}
+      {/* ALERT MODAL */}
       {modal && (
-        <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setModal(null)}>
-          <div className="bg-[#1e1f20] p-6 rounded-3xl border border-white/10 max-w-sm w-full animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
-            <h3 className="text-xl font-bold mb-4">{modal}</h3>
-            <div className="text-sm text-[#9aa0a6] space-y-4">
-              {modal === 'TOS' && <p>Gunakan asisten ini untuk riset akademik profesional. Poin Anda akan di-reset otomatis menjadi 100 setiap jam 00:00 WIB.</p>}
-              {modal === 'PRIVACY' && <p>Kami sangat menjaga privasi. File dokumen yang Anda unggah hanya diproses sementara untuk analisis AI dan tidak disimpan permanen.</p>}
-              {modal === 'FEEDBACK' && <p>Masukan Anda sangat berharga bagi perkembangan Guugie. Kirim saran/feedback ke: guuglabs@gmail.com.</p>}
+        <div className="fixed inset-0 z-[999] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-300">
+          <div className="bg-[#161616] border border-white/10 p-6 rounded-[32px] max-w-xs w-full text-center shadow-2xl">
+            <div className={`w-12 h-12 rounded-full mx-auto mb-4 flex items-center justify-center ${modal.type === 'error' ? 'bg-red-500/10 text-red-500' : 'bg-blue-500/10 text-blue-500'}`}>
+              {modal.type === 'error' ? <X size={24} /> : <Zap size={24} />}
             </div>
-            <button onClick={() => setModal(null)} className="w-full mt-6 py-3 bg-[#303132] rounded-xl font-bold transition-all hover:bg-[#444746]">Tutup</button>
+            <p className="text-sm font-bold mb-6">{modal.msg}</p>
+            <button onClick={() => setModal(null)} className="w-full py-3 bg-white text-black rounded-full font-black text-[11px] uppercase tracking-widest">Oke Gas</button>
           </div>
         </div>
       )}
 
-      {/* SIDEBAR (RENAME, DELETE, LEGAL, POWERED BY) */}
-      <aside className={`fixed lg:relative z-[250] h-full transition-all duration-300 bg-[#1e1f20] border-r border-white/5 ${isSidebarOpen ? "w-72" : "w-0 lg:w-0 overflow-hidden"}`}>
-        <div className="w-72 p-4 flex flex-col h-full">
-          <button onClick={() => { setCurrentChatId(null); setMessages([]); setIsSidebarOpen(false); }} className="flex items-center gap-3 bg-[#303132] hover:bg-[#444746] p-4 rounded-2xl text-sm font-medium transition-all shadow-xl">
-            <Plus size={20} /> Chat Baru
+      {/* SIDEBAR */}
+      <aside className={`fixed inset-y-0 left-0 z-[500] w-72 bg-[#121212] transform transition-transform duration-300 border-r border-white/5 ${isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0 lg:static lg:w-72"}`}>
+        <div className="flex flex-col h-full p-4">
+          <div className="flex items-center justify-between mb-6 lg:hidden">
+            <h2 className="font-black italic uppercase tracking-tighter">Guugie</h2>
+            <button onClick={() => setIsSidebarOpen(false)} className="p-2"><X size={20}/></button>
+          </div>
+          <button onClick={() => { setCurrentChatId(null); setIsSidebarOpen(false); }} className="flex items-center gap-3 bg-[#1e1e1e] hover:bg-[#252525] p-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all">
+            <Plus size={18} /> Chat Baru
           </button>
-          <div className="mt-8 flex-1 overflow-y-auto space-y-1 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto mt-6 no-scrollbar space-y-1">
             {history.map(chat => (
-              <div key={chat.id} className={`group flex items-center justify-between p-3 rounded-xl hover:bg-[#303132] ${currentChatId === chat.id ? 'bg-[#303132]' : ''}`}>
-                <button onClick={() => { setCurrentChatId(chat.id); setIsSidebarOpen(false); }} className="flex-1 text-left text-sm truncate pr-2">{chat.title}</button>
-                <div className="hidden group-hover:flex items-center gap-2">
-                  <button onClick={async (e) => { e.stopPropagation(); const t = prompt("Ubah Nama:", chat.title); if(t) { await supabase.from("chats").update({title: t}).eq("id", chat.id); loadData(user.id); } }}><Pencil size={14} /></button>
-                  <button onClick={async (e) => { e.stopPropagation(); if(confirm("Hapus?")) { await supabase.from("chats").delete().eq("id", chat.id); loadData(user.id); if(currentChatId===chat.id) setMessages([]); } }} className="text-red-400"><Trash2 size={14} /></button>
-                </div>
+              <div key={chat.id} className={`group flex items-center gap-2 p-3 rounded-xl hover:bg-[#1e1e1e] ${currentChatId === chat.id ? 'bg-[#1e1e1e]' : ''}`}>
+                <button onClick={() => { setCurrentChatId(chat.id); setIsSidebarOpen(false); }} className="flex-1 text-left text-xs truncate opacity-70">{chat.title}</button>
+                <button onClick={async (e) => { e.stopPropagation(); if(confirm("Hapus?")) { await supabase.from("chats").delete().eq("id", chat.id); loadData(user.id); if(currentChatId===chat.id) setMessages([]); } }} className="opacity-0 group-hover:opacity-100 p-1 text-red-500"><Trash2 size={12}/></button>
               </div>
             ))}
           </div>
-
-          <div className="mt-auto pt-4 border-t border-white/5 space-y-4">
-            {/* RESET INFO */}
-            <div className="p-3 bg-blue-500/5 rounded-xl border border-blue-500/10">
-              <div className="flex items-center gap-2 mb-1"><Zap size={12} className="text-blue-500" /><p className="text-[10px] font-bold uppercase text-blue-400">Daily Reset</p></div>
-              <p className="text-[9px] text-[#9aa0a6] leading-tight font-black italic">Poin di-reset menjadi 100 setiap jam 00:00.</p>
-            </div>
-            {/* POWERED BY */}
-            <div className="px-2">
-              <p className="text-[10px] uppercase font-bold text-[#444746] mb-1 leading-none">Powered By</p>
-              <div className="flex gap-2 opacity-30 grayscale hover:grayscale-0 transition-all">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/8/8a/Google_Gemini_logo.svg" className="h-3" alt="Gemini" />
-                <span className="text-[9px] font-black uppercase italic tracking-tighter">DeepSeek</span>
-              </div>
-            </div>
-            {/* LEGAL LINKS */}
-            <div className="flex gap-4 text-[10px] font-bold text-[#9aa0a6] px-2 uppercase tracking-tighter">
-              <button onClick={() => setModal('TOS')} className="hover:text-white transition-colors">TOS</button>
-              <button onClick={() => setModal('PRIVACY')} className="hover:text-white transition-colors">PRIVACY</button>
-              <button onClick={() => setModal('FEEDBACK')} className="hover:text-white transition-colors">FEEDBACK</button>
-            </div>
-            <p className="text-[9px] text-[#444746] px-2 font-black italic uppercase tracking-widest leading-none">© 2026 GUUG LABS.</p>
+          <div className="mt-auto pt-4 border-t border-white/5">
+             <p className="text-[9px] text-[#222] font-black italic uppercase tracking-widest">© 2026 GUUG LABS.</p>
           </div>
         </div>
       </aside>
 
-      {/* MAIN CONTENT */}
-      <main className="flex-1 flex flex-col relative h-full min-w-0">
-        <header className="flex items-center justify-between p-4 lg:px-6">
+      {/* MAIN */}
+      <main className="flex-1 flex flex-col relative min-w-0 h-full">
+        <header className="flex items-center justify-between p-4 bg-[#0a0a0a]/80 backdrop-blur-md sticky top-0 z-[100]">
           <div className="flex items-center gap-4">
-            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-[#303132] rounded-full transition-all text-[#9aa0a6]"><PanelLeftOpen size={20} /></button>
+            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 bg-[#121212] rounded-xl"><PanelLeftOpen size={20} /></button>
             <h1 className="text-xl font-black italic uppercase tracking-tighter">Guugie</h1>
           </div>
-          <div className="flex items-center gap-4 relative">
-            <span className="text-sm font-bold text-blue-500">{quota} Pts</span>
-            <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="w-8 h-8 rounded-full bg-[#303132] flex items-center justify-center border border-white/5 overflow-hidden transition-transform active:scale-90 shadow-lg">
-               {user?.user_metadata?.avatar_url ? <img src={user.user_metadata.avatar_url} /> : <User size={16} />}
+          <div className="flex items-center gap-4">
+            <div className="bg-blue-500/10 px-3 py-1.5 rounded-full border border-blue-500/20">
+              <span className="text-[10px] font-black text-blue-500 tracking-widest">{quota} PTS</span>
+            </div>
+            <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="w-8 h-8 rounded-full bg-[#121212] border border-white/5 overflow-hidden">
+               {user?.user_metadata?.avatar_url ? <img src={user.user_metadata.avatar_url} /> : <User size={16} className="m-auto mt-2" />}
             </button>
             {isProfileOpen && (
-              <div className="absolute right-0 top-12 bg-[#1e1f20] border border-white/10 rounded-2xl shadow-2xl z-[260] w-52 overflow-hidden animate-in fade-in zoom-in-95">
-                <div className="p-4 border-b border-white/5 text-xs">
-                  <p className="font-bold text-white truncate">{user?.user_metadata?.name || 'User'}</p>
-                  <p className="text-[#9aa0a6] truncate">{user?.email}</p>
-                </div>
+              <div className="absolute right-0 top-12 bg-[#161616] border border-white/10 rounded-2xl shadow-2xl z-[260] w-52 overflow-hidden animate-in fade-in zoom-in-95">
                 <button onClick={() => supabase.auth.signOut().then(() => router.push("/login"))} className="w-full flex items-center gap-3 p-4 hover:bg-red-500/10 text-red-400 text-xs font-bold transition-colors">
                   <LogOut size={16} /> Keluar
                 </button>
@@ -236,83 +180,76 @@ export default function GuugieUltraMasterPage() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar px-4">
-          <div className="max-w-3xl mx-auto py-10">
+        <div className="flex-1 overflow-y-auto no-scrollbar px-4 chat-container">
+          <div className="max-w-2xl mx-auto py-8">
             {messages.length === 0 ? (
-              <div className="mt-20 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
-                <h2 className="text-4xl md:text-5xl font-medium text-white tracking-tight italic uppercase font-black">Halo {user?.user_metadata?.name?.split(' ')[0] || 'GUUG'},</h2>
-                <p className="text-[#9aa0a6] text-xl font-normal leading-relaxed tracking-tight">Ada yang bisa saya bantu hari ini?</p>
+              <div className="h-full flex flex-col items-center justify-center text-center mt-20">
+                <h2 className="text-3xl font-black italic uppercase tracking-tighter mb-2">Halo {user?.user_metadata?.name?.split(' ')[0]}</h2>
+                <p className="text-sm opacity-40 font-medium">Ada riset apa hari ini?</p>
               </div>
             ) : (
-              <div className="space-y-10 pb-32">
+              <div className="space-y-8 pb-32">
                 {messages.map((m, i) => (
-                  <div key={i} className={`flex gap-4 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] p-4 rounded-2xl ${m.role === 'user' ? 'bg-[#303132]' : 'border border-white/5'}`}>
-                      <div className="prose prose-invert max-w-none text-[15px] leading-relaxed"><ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown></div>
+                  <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[90%] p-4 rounded-3xl text-sm ${m.role === 'user' ? 'bg-[#161616] border border-white/5' : 'bg-transparent'}`}>
+                      <div className="prose prose-invert prose-sm"><ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown></div>
                     </div>
                   </div>
                 ))}
-                {isLoading && <div className="text-sm text-[#9aa0a6] animate-pulse italic font-bold pl-2 tracking-tight">{GUUGIE_MODELS[selectedKasta].loading}</div>}
+                {isLoading && <div className="text-[10px] font-black uppercase tracking-widest opacity-30 animate-pulse px-4">{GUUGIE_MODELS[selectedKasta].loading}</div>}
                 <div ref={chatEndRef} />
               </div>
             )}
           </div>
         </div>
 
-        {/* INPUT BOX AREA */}
-        <div className="p-4 lg:p-10">
-          <div className="max-w-3xl mx-auto relative">
-            {pendingFile && <div className="mb-2 inline-flex items-center gap-2 bg-[#303132] px-3 py-1.5 rounded-xl text-xs text-blue-400 border border-blue-500/20 animate-in slide-in-from-bottom-2"><FileText size={14} /> {pendingFile.name} <button onClick={() => setPendingFile(null)}><X size={14} /></button></div>}
-            
-            <div className="bg-[#1e1f20] rounded-[28px] p-2 flex flex-col border border-transparent focus-within:border-[#444746] shadow-2xl transition-all">
+        {/* INPUT AREA */}
+        <div className="fixed bottom-0 left-0 lg:left-72 right-0 p-4 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent">
+          <div className="max-w-2xl mx-auto">
+            {pendingFile && <div className="mb-2 inline-flex items-center gap-2 bg-[#161616] px-3 py-1.5 rounded-full text-[10px] font-bold text-blue-500 border border-blue-500/20"><FileText size={12} /> {pendingFile.name}</div>}
+            <div className="bg-[#121212] rounded-[32px] p-2 border border-white/5 flex flex-col shadow-2xl">
               <textarea 
-                ref={textAreaRef} rows={1} value={inputText} 
-                onChange={(e) => setInputText(e.target.value)} 
-                onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }} 
-                placeholder="Tanyakan riset atau akademik Anda..." 
-                className="w-full bg-transparent border-none outline-none p-4 text-base resize-none max-h-40 custom-scrollbar placeholder-[#9aa0a6]" 
+                ref={textAreaRef} rows={1} value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
+                placeholder="Tanya Guugie..."
+                className="w-full bg-transparent border-none outline-none p-3 text-sm resize-none no-scrollbar"
               />
               <div className="flex items-center justify-between px-2 pb-1">
                 <div className="flex items-center gap-1 relative">
-                  {/* MODEL SELECTOR */}
-                  <button onClick={() => setIsKastaOpen(!isKastaOpen)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#303132] rounded-xl text-xs font-bold text-[#9aa0a6] transition-colors border border-white/5">
-                    {GUUGIE_MODELS[selectedKasta].label} <ChevronDown size={14} />
+                  <button onClick={() => setIsKastaOpen(!isKastaOpen)} className="px-3 py-1.5 hover:bg-[#1e1e1e] rounded-full text-[10px] font-black uppercase tracking-widest text-[#666] border border-white/5">
+                    {GUUGIE_MODELS[selectedKasta].label}
                   </button>
-                  {/* ATTACH FILE */}
-                  <button onClick={() => fileInputRef.current?.click()} className="p-2 hover:bg-[#303132] rounded-xl text-[#9aa0a6] transition-colors"><Paperclip size={20} /></button>
-                  <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-                  {/* VOICE INPUT */}
-                  <button onClick={() => { 
-                    const Speech = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition; 
-                    if (!Speech) return alert("Browser tidak mendukung voice."); 
-                    const rec = new Speech(); rec.lang = "id-ID"; 
-                    rec.onstart = () => setIsRecording(true); 
-                    rec.onend = () => setIsRecording(false); 
-                    rec.onresult = (e: any) => setInputText(prev => prev + " " + e.results[0][0].transcript); 
-                    rec.start(); 
-                  }} className={`p-2 hover:bg-[#303132] rounded-xl text-[#9aa0a6] transition-colors ${isRecording ? 'text-red-500 animate-pulse' : ''}`}><Mic size={20} /></button>
+                  <button onClick={() => fileInputRef.current?.click()} className="p-2 text-[#444]"><Paperclip size={18} /></button>
+                  <input type="file" ref={fileInputRef} className="hidden" onChange={async (e) => {
+                    const f = e.target.files?.[0]; if(!f) return; setPendingFile(f);
+                    const t = f.name.endsWith(".docx") ? (await mammoth.extractRawText({ arrayBuffer: await f.arrayBuffer() })).value : await f.text();
+                    setExtractedText(t); setSelectedKasta("PRO");
+                  }} />
+                  <button onClick={() => {
+                    const Speech = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+                    if(!Speech) return setModal({type:'info', msg:'Browser gak support.'});
+                    const rec = new Speech(); rec.lang = "id-ID";
+                    rec.onstart = () => setIsRecording(true); rec.onend = () => setIsRecording(false);
+                    rec.onresult = (e: any) => setInputText(prev => prev + " " + e.results[0][0].transcript);
+                    try { rec.start(); } catch { setModal({type:'error', msg:'Izinkan Mic di HP.'}); }
+                  }} className={`p-2 ${isRecording ? 'text-red-500 animate-pulse' : 'text-[#444]'}`}><Mic size={18} /></button>
                   
                   {isKastaOpen && (
-                    <div className="absolute bottom-12 left-0 bg-[#1e1f20] border border-white/10 rounded-2xl shadow-2xl p-2 w-64 z-[260] animate-in slide-in-from-bottom-2">
+                    <div className="absolute bottom-12 left-0 bg-[#161616] border border-white/10 rounded-3xl shadow-2xl p-2 w-56 z-[600]">
                       {Object.entries(GUUGIE_MODELS).map(([key, cfg]) => (
-                        <button key={key} onClick={() => { setSelectedKasta(key as any); setIsKastaOpen(false); }} className={`w-full flex flex-col p-3 rounded-xl text-left transition-colors hover:bg-[#303132] ${selectedKasta === key ? 'bg-[#303132] border border-white/5' : ''}`}>
-                          <span className="text-sm font-bold">{cfg.label}</span>
-                          <span className="text-[10px] text-[#9aa0a6]">{cfg.sub} ({cfg.points} Pts)</span>
+                        <button key={key} onClick={() => { setSelectedKasta(key as any); setIsKastaOpen(false); }} className={`w-full flex flex-col p-3 rounded-2xl text-left hover:bg-[#1e1e1e] ${selectedKasta === key ? 'bg-[#1e1e1e]' : ''}`}>
+                          <span className="text-[11px] font-black uppercase tracking-widest">{cfg.label}</span>
+                          <span className="text-[9px] opacity-40 uppercase tracking-tighter">{cfg.sub} ({cfg.points} PTS)</span>
                         </button>
                       ))}
                     </div>
                   )}
                 </div>
-                <button onClick={handleSendMessage} disabled={isLoading} className={`p-2 rounded-full transition-all ${inputText.trim() || extractedText ? 'text-white' : 'text-[#444746]'}`}>
-                  {isLoading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
+                <button onClick={handleSendMessage} disabled={isLoading} className={`p-3 rounded-full transition-all ${inputText.trim() || extractedText ? 'bg-blue-600 text-white' : 'bg-[#1e1e1e] text-[#444]'}`}>
+                  {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                 </button>
               </div>
-            </div>
-            
-            <div className="mt-4 pb-4">
-               <p className="text-[10px] md:text-[11px] text-[#9aa0a6] text-center font-medium opacity-60 italic tracking-tight">
-                 Guugie dapat membuat kesalahan, jadi periksa kembali responsnya.
-               </p>
             </div>
           </div>
         </div>
