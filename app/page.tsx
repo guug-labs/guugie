@@ -77,13 +77,13 @@ export default function GuugieHyperFinalPage() {
     setTimeout(() => setToastAlert(null), 4000);
   };
 
-  // --- FIX 1: Geometric Font (Outfit) & Global Calm Styling ---
+  // --- FIX: OUTFIT FONT & RESET GAYA (NO ITALIC, NO ALL-CAPS) ---
   useEffect(() => {
     const style = document.createElement('style');
     style.innerHTML = `
       @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap');
-      * { font-family: 'Outfit', sans-serif !important; font-weight: 400; letter-spacing: -0.01em; }
-      h1, h2, h3, .font-bold { font-weight: 600 !important; }
+      * { font-family: 'Outfit', sans-serif !important; font-style: normal !important; letter-spacing: -0.01em; }
+      .font-bold { font-weight: 600 !important; }
       @media screen and (max-width: 768px) { 
         textarea, input { font-size: 16px !important; transform: scale(1) !important; } 
       }
@@ -92,7 +92,7 @@ export default function GuugieHyperFinalPage() {
     return () => { document.head.removeChild(style); };
   }, []);
 
-  // --- FIX 2: Mic iOS User Gesture & Logic ---
+  // --- MIC LOGIC (NO CHANGES) ---
   const handleMicClick = async () => {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
     if (isIOS) {
@@ -100,7 +100,7 @@ export default function GuugieHyperFinalPage() {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         stream.getTracks().forEach(track => track.stop());
         startListening();
-      } catch (err) { triggerAlert("Izinkan Mic di Settings Safari"); }
+      } catch (err) { triggerAlert("Izinkan Mic di Settings browser"); }
     } else { startListening(); }
   };
 
@@ -122,7 +122,7 @@ export default function GuugieHyperFinalPage() {
     try { recognition.start(); } catch (err) { triggerAlert("Gagal memulai Mic."); }
   };
 
-  // --- CORE LOGIC (Supabase & Chat) ---
+  // --- CORE SYSTEM (NO CHANGES) ---
   const handleSelectChat = async (chatId: string) => {
     setIsSidebarOpen(false);
     if (currentChatId === chatId) return;
@@ -207,7 +207,7 @@ export default function GuugieHyperFinalPage() {
         setMessages(prev => [...prev, { role: 'assistant', content: data.content }]);
         setQuota(prev => prev - 1);
       }
-    } catch (error) { triggerAlert("Server AI sedang sibuk."); } 
+    } catch (error) { triggerAlert("Server AI sibuk."); } 
     finally { setIsLoading(false); }
   };
 
@@ -222,8 +222,8 @@ export default function GuugieHyperFinalPage() {
       if (uploadError) throw uploadError;
       const { data: { publicUrl } } = supabase.storage.from('research-files').getPublicUrl(filePath);
       setPendingFile({ name: file.name, url: publicUrl });
-      triggerAlert(`${file.name} siap dikirim!`);
-    } catch (error) { triggerAlert("Gagal upload file."); } 
+      triggerAlert(`${file.name} siap!`);
+    } catch (error) { triggerAlert("Gagal upload."); } 
     finally { setIsUploading(false); }
   };
 
@@ -247,7 +247,7 @@ export default function GuugieHyperFinalPage() {
 
   const handleLogout = async () => { await supabase.auth.signOut(); router.push("/login"); };
 
-  // --- FIX 3: Fully Populated Modal Content ---
+  // --- POPULATED MODAL CONTENT ---
   const Modal = ({ title, type }: { title: string, type: string }) => (
     <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-[#0B101A]/95 backdrop-blur-2xl">
       <div className="bg-[#1E293B] border border-white/10 w-full max-w-2xl rounded-[30px] overflow-hidden shadow-2xl relative">
@@ -257,30 +257,30 @@ export default function GuugieHyperFinalPage() {
           {type === 'terms' ? (
             <div className="space-y-4">
               <p className="font-semibold text-white">Ketentuan Layanan Guugie</p>
-              <p>1. Guugie adalah platform asisten riset berbasis AI yang dirancang untuk membantu produktivitas akademik dan profesional Anda.</p>
-              <p>2. Setiap interaksi pesan akan mengurangi saldo Poin (Quota) Anda. Poin tidak dapat diuangkan kembali.</p>
-              <p>3. Pengguna bertanggung jawab penuh atas input data dan dilarang menyebarkan konten yang melanggar hukum.</p>
-              <p>4. Guugie tidak menjamin keakuratan mutlak jawaban AI. Harap lakukan verifikasi mandiri untuk data kritikal.</p>
+              <p>1. Layanan Guugie adalah platform asisten riset berbasis AI. Kami membantu produktivitas akademik dan profesional Anda.</p>
+              <p>2. Setiap interaksi pesan akan mengurangi saldo Poin (Quota). Poin tidak dapat diuangkan kembali.</p>
+              <p>3. Dilarang menggunakan sistem ini untuk konten ilegal, berbahaya, atau melanggar hak cipta.</p>
+              <p>4. Hasil AI mungkin tidak akurat 100%. Mohon lakukan verifikasi mandiri untuk pekerjaan penting.</p>
             </div>
           ) : type === 'privacy' ? (
             <div className="space-y-4">
               <p className="font-semibold text-white">Kebijakan Privasi</p>
-              <p>1. Data pribadi dan riwayat percakapan Anda dienkripsi dan hanya dapat diakses melalui akun Anda.</p>
-              <p>2. Kami tidak menjual data pengguna kepada pihak ketiga. Data Anda hanya digunakan untuk meningkatkan performa asisten AI Anda.</p>
-              <p>3. File yang diunggah diproses sementara dan disimpan di penyimpanan cloud aman kami selama percakapan berlangsung.</p>
+              <p>1. Data percakapan Anda dienkripsi dan hanya dapat diakses oleh Anda sendiri.</p>
+              <p>2. Kami tidak membagikan atau menjual data pribadi Anda kepada pihak ketiga.</p>
+              <p>3. File yang diunggah diproses secara aman dan dihapus sesuai kebijakan retensi data kami.</p>
             </div>
           ) : type === 'tips' ? (
-            <div className="space-y-4 text-[13px]">
-              <p className="font-semibold text-white">Tips Riset Efektif</p>
-              <p>• Gunakan mode <strong>Cari Ide</strong> untuk memancing pertanyaan riset yang belum pernah dibahas (novelty).</p>
-              <p>• Upload file PDF jurnal Anda, lalu gunakan mode <strong>Rangkum Materi</strong> untuk bedah cepat isi jurnal.</p>
-              <p>• Sebelum presentasi, coba mode <strong>Simulasi Sidang</strong> untuk melatih mental menjawab pertanyaan dosen.</p>
+            <div className="space-y-4">
+              <p className="font-semibold text-white">Tips Maksimalkan Guugie</p>
+              <p>• Gunakan mode <strong>Cari Ide</strong> untuk mendapatkan sudut pandang riset yang baru dan unik.</p>
+              <p>• Gunakan mode <strong>Rangkum Materi</strong> untuk membedah jurnal akademik yang kompleks dalam hitungan detik.</p>
+              <p>• Sebelum sidang skripsi atau meeting, gunakan mode <strong>Simulasi Sidang</strong> untuk melatih jawaban Anda.</p>
             </div>
           ) : type === 'feedback' ? (
             <div className="text-center py-6 space-y-4">
               <div className="p-4 bg-white/5 rounded-2xl border border-white/5 inline-block mx-auto"><Mail size={32} className="text-blue-500" /></div>
-              <h4 className="text-white font-semibold">Ada Kritik atau Saran?</h4>
-              <p>Kami sangat menghargai masukan Anda untuk membuat Guugie lebih cerdas.</p>
+              <h4 className="text-white font-semibold">Kritik & Saran</h4>
+              <p>Masukan Anda sangat berharga bagi perkembangan Guugie.</p>
               <p className="p-3 bg-blue-600/10 border border-blue-500/20 rounded-xl text-blue-400 font-medium">guuglabs@gmail.com</p>
             </div>
           ) : null}
@@ -294,10 +294,9 @@ export default function GuugieHyperFinalPage() {
   return (
     <div className="flex h-[100dvh] bg-[#0B101A] text-slate-200 overflow-hidden">
       
-      {activeModal && <Modal title={activeModal === 'feedback' ? 'Kritik & Saran' : activeModal === 'terms' ? 'Terms of Service' : activeModal === 'privacy' ? 'Privacy Policy' : 'Tips Riset'} type={activeModal} />}
+      {activeModal && <Modal title={activeModal === 'feedback' ? 'KRITIK & SARAN' : activeModal === 'terms' ? 'TERMS OF SERVICE' : activeModal === 'privacy' ? 'PRIVACY POLICY' : 'TIPS RISET'} type={activeModal} />}
       {toastAlert?.show && <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[500] bg-blue-600 px-6 py-2 rounded-full text-[10px] font-bold uppercase shadow-2xl animate-in slide-in-from-top-4">{toastAlert.msg}</div>}
 
-      {/* --- SIDEBAR: Footer Links Integrated Here --- */}
       <aside className={`fixed lg:relative z-[100] h-[100dvh] lg:h-full top-0 left-0 transition-all duration-500 bg-[#0F172A] border-r border-white/5 flex flex-col ${isSidebarOpen ? "w-72 shadow-2xl translate-x-0" : "w-72 -translate-x-full lg:w-0 lg:translate-x-0 overflow-hidden"}`}>
         <div className="w-72 flex flex-col h-full p-6 shrink-0">
           <button onClick={() => { setCurrentChatId(null); setMessages([]); setIsSidebarOpen(false); setIsInitialLoad(true); }} className="w-full flex items-center justify-center gap-3 bg-blue-600 p-4 rounded-2xl font-bold text-[10px] uppercase shadow-xl transition-all"><Plus size={16} /> New Chat</button>
@@ -316,7 +315,6 @@ export default function GuugieHyperFinalPage() {
                     <span className="truncate w-32 inline-block font-medium">{chat.title}</span>
                   </button>
                 )}
-                {/* FIX: Force Visible Buttons in History */}
                 <div className="flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all"> 
                   <button onClick={() => {setEditingChatId(chat.id); setEditTitle(chat.title);}} className="p-2 text-slate-500 hover:text-white"><Pencil size={14} /></button>
                   <button onClick={(e) => {e.stopPropagation(); handleDeleteChat(chat.id);}} className="p-2 text-red-500"><Trash2 size={14} /></button>
@@ -325,7 +323,6 @@ export default function GuugieHyperFinalPage() {
             ))}
           </div>
 
-          {/* SIDEBAR NAVIGATION (CLEAN FOOTER) */}
           <div className="pt-6 border-t border-white/5 space-y-4">
             <div className="flex flex-wrap gap-x-4 gap-y-2 text-[10px] font-bold uppercase text-slate-500">
               <button onClick={() => setActiveModal('tips')} className="hover:text-blue-500">Tips</button>
@@ -333,7 +330,7 @@ export default function GuugieHyperFinalPage() {
               <button onClick={() => setActiveModal('privacy')} className="hover:text-blue-500">Privacy</button>
               <button onClick={() => setActiveModal('feedback')} className="hover:text-blue-400">Kritik & Saran</button>
             </div>
-            <p className="text-[8px] opacity-20 font-bold uppercase tracking-widest select-none">© 2026 GUUG LABS</p>
+            <p className="text-[8px] opacity-20 font-bold uppercase tracking-widest">© 2026 GUUG LABS</p>
           </div>
         </div>
       </aside>
@@ -345,8 +342,10 @@ export default function GuugieHyperFinalPage() {
           <div className="flex items-center gap-4">
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-white/5 rounded-xl text-slate-400"><PanelLeftOpen size={22} /></button>
             <div className="flex flex-col">
-              <h1 className="text-lg lg:text-xl font-bold italic uppercase tracking-tighter text-white">Guugie</h1>
-              <span className="text-[8px] font-bold text-blue-500 uppercase tracking-widest">{userCategory} MODE</span>
+              {/* BRANDING: NORMAL, SENTENCE CASE, OUTFIT */}
+              <h1 className="text-lg lg:text-xl font-bold text-white">Guugie</h1>
+              {/* LABEL: NO "MODE" */}
+              <span className="text-[8px] font-bold text-blue-500 uppercase tracking-widest">{userCategory}</span>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -366,7 +365,8 @@ export default function GuugieHyperFinalPage() {
             <div className="max-w-4xl mx-auto p-4 lg:p-8 flex flex-col items-center">
               {messages.length === 0 ? (
                 <div className="mt-20 text-center animate-in fade-in duration-1000">
-                  <h2 className="text-3xl lg:text-5xl font-bold uppercase italic tracking-tighter text-white">Halo {user?.user_metadata?.full_name?.split(' ')[0] || 'Researcher'},</h2>
+                  {/* WELCOME: NORMAL, SENTENCE CASE */}
+                  <h2 className="text-3xl lg:text-5xl font-bold text-white">Halo {user?.user_metadata?.full_name?.split(' ')[0] || 'Researcher'},</h2>
                   <p className="text-[10px] lg:text-xs text-slate-500 font-bold uppercase tracking-[0.4em] mt-6">Asisten riset Anda siap membantu draf pekerjaan Anda.</p>
                 </div>
               ) : (
@@ -387,7 +387,6 @@ export default function GuugieHyperFinalPage() {
           </div>
         </div>
 
-        {/* --- INPUT AREA: STICKY BOTTOM & CALM DISCLAIMER --- */}
         <div className="shrink-0 p-3 lg:p-8 pb-4 lg:pb-6 bg-gradient-to-t from-[#0B101A] via-[#0B101A] to-transparent z-40">
           <div className="max-w-4xl mx-auto relative flex flex-col items-center">
             {pendingFile && (
@@ -422,7 +421,6 @@ export default function GuugieHyperFinalPage() {
               <button onClick={handleSendMessage} disabled={isLoading} className="p-4 bg-blue-600 text-white rounded-[22px] shadow-xl active:scale-95 transition-all">{isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <Send size={20} />}</button>
             </div>
 
-            {/* CALM DISCLAIMER (DESKTOP ONLY) */}
             <p className="mt-3 text-[10px] text-slate-500 font-medium hidden lg:block text-center opacity-60 select-none">
               Guugie bisa saja salah, jadi tolong dicek lagi ya jawabannya.
             </p>
