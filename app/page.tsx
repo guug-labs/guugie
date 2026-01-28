@@ -77,24 +77,31 @@ export default function GuugieHyperFinalPage() {
     setTimeout(() => setToastAlert(null), 4000);
   };
 
-  // --- iOS FIXES ---
+  // --- FIX 1: Geometric Font & iOS Input Style ---
   useEffect(() => {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    if (isIOS) {
-      const style = document.createElement('style');
-      style.innerHTML = `@media screen and (max-width: 768px) { textarea, input { font-size: 16px !important; transform: scale(1) !important; } }`;
-      document.head.appendChild(style);
-      return () => { document.head.removeChild(style); };
-    }
+    const style = document.createElement('style');
+    // Injeksi Font Lexend (Geometric Sans)
+    style.innerHTML = `
+      @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;700;900&display=swap');
+      body, html { font-family: 'Lexend', sans-serif !important; }
+      @media screen and (max-width: 768px) { 
+        textarea, input { font-size: 16px !important; transform: scale(1) !important; } 
+      }
+    `;
+    document.head.appendChild(style);
+    return () => { document.head.removeChild(style); };
   }, []);
 
+  // --- FIX 2: Mic iOS User Gesture ---
   const handleMicClick = async () => {
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    if (isIOS) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         stream.getTracks().forEach(track => track.stop());
         startListening();
-      } catch (err) { triggerAlert("Izin Mic ditolak."); }
+      } catch (err) { triggerAlert("Aktifkan Mic di Settings Safari"); }
     } else { startListening(); }
   };
 
@@ -112,12 +119,11 @@ export default function GuugieHyperFinalPage() {
       setInputText(prev => prev + (prev ? " " : "") + transcript);
       triggerAlert("✓ Berhasil!");
     };
-    recognition.onerror = () => setIsListening(false);
+    recognition.onerror = () => { setIsListening(false); triggerAlert("Mic Timeout/Error"); };
     recognitionRef.current = recognition;
     try { recognition.start(); } catch (err) { triggerAlert("Gagal!"); }
   };
 
-  // --- LOGIC RESTORED ---
   const handleSelectChat = async (chatId: string) => {
     setIsSidebarOpen(false);
     if (currentChatId === chatId) return;
@@ -242,12 +248,35 @@ export default function GuugieHyperFinalPage() {
 
   const handleLogout = async () => { await supabase.auth.signOut(); router.push("/login"); };
 
+  // --- FIX 3: Modal TOS Content ---
+  const Modal = ({ title, type, children }: { title: string, type: string, children?: React.ReactNode }) => (
+    <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-[#0B101A]/95 backdrop-blur-2xl">
+      <div className="bg-[#1E293B] border border-white/10 w-full max-w-2xl rounded-[30px] overflow-hidden shadow-2xl relative">
+        <button onClick={() => setActiveModal(null)} className="absolute top-4 right-4 p-2 hover:bg-white/10 rounded-xl transition-all text-slate-400 hover:text-white z-10"><X size={20}/></button>
+        <div className="p-6 border-b border-white/5 bg-white/5"><h3 className="text-xs font-black uppercase tracking-widest text-blue-500">{title}</h3></div>
+        <div className="p-6 max-h-[60vh] overflow-y-auto text-sm text-slate-300 custom-scrollbar leading-relaxed">
+          {type === 'terms' ? (
+            <div className="space-y-4 font-medium">
+              <p>1. Layanan Guugie adalah asisten riset berbasis AI.</p>
+              <p>2. Penggunaan poin (quota) berlaku untuk setiap pesan yang dikirim ke AI.</p>
+              <p>3. Dilarang menggunakan layanan untuk konten ilegal atau melanggar hak cipta.</p>
+              <p>4. Data Anda aman dan terenkripsi di server kami.</p>
+            </div>
+          ) : children}
+        </div>
+      </div>
+    </div>
+  );
+
   if (isLoadingSession) return <div className="flex h-screen w-full items-center justify-center bg-[#0B101A]"><Loader2 className="animate-spin text-blue-600" /></div>;
 
   return (
     <div className="flex h-[100dvh] bg-[#0B101A] text-slate-200 overflow-hidden font-sans">
       
-      {/* --- SIDEBAR RESTORED --- */}
+      {activeModal && <Modal title={activeModal.toUpperCase()} type={activeModal} />}
+      {toastAlert?.show && <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[500] bg-blue-600 px-6 py-3 rounded-full font-black text-[10px] uppercase shadow-2xl animate-in slide-in-from-top-4">{toastAlert.msg}</div>}
+
+      {/* --- SIDEBAR FIX: Visible Buttons --- */}
       <aside className={`fixed lg:relative z-[100] h-[100dvh] lg:h-full top-0 left-0 transition-all duration-500 bg-[#0F172A] border-r border-white/5 flex flex-col ${isSidebarOpen ? "w-72 shadow-2xl translate-x-0" : "w-72 -translate-x-full lg:w-0 lg:translate-x-0 overflow-hidden"}`}>
         <div className="w-72 flex flex-col h-full p-6 shrink-0">
           <button onClick={() => { setCurrentChatId(null); setMessages([]); setIsSidebarOpen(false); setIsInitialLoad(true); }} className="w-full flex items-center justify-center gap-3 bg-blue-600 p-4 rounded-2xl font-black text-[10px] uppercase shadow-xl active:scale-95 transition-all"><Plus size={16} /> New Chat</button>
@@ -265,7 +294,7 @@ export default function GuugieHyperFinalPage() {
                     <span className="truncate w-32 inline-block">{chat.title}</span>
                   </button>
                 )}
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                <div className="flex gap-1 opacity-100 transition-all"> {/* FIX: Force Visible */}
                   <button onClick={() => {setEditingChatId(chat.id); setEditTitle(chat.title);}} className="p-2 text-slate-500 hover:bg-white/10 rounded-lg"><Pencil size={14} /></button>
                   <button onClick={(e) => {e.stopPropagation(); handleDeleteChat(chat.id);}} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg"><Trash2 size={14} /></button>
                 </div>
@@ -278,7 +307,6 @@ export default function GuugieHyperFinalPage() {
       {isSidebarOpen && <div onClick={() => setIsSidebarOpen(false)} className="fixed inset-0 bg-black/50 z-[90] lg:hidden backdrop-blur-sm"></div>}
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative h-full">
-        {/* --- HEADER RESTORED --- */}
         <header className="shrink-0 flex items-center justify-between p-4 lg:p-6 bg-[#0B101A]/80 backdrop-blur-xl border-b border-white/5 z-40">
           <div className="flex items-center gap-4">
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-white/5 rounded-xl text-slate-400"><PanelLeftOpen size={22} /></button>
@@ -288,8 +316,8 @@ export default function GuugieHyperFinalPage() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="bg-orange-500/10 border border-orange-500/20 px-3 py-1.5 rounded-full text-[9px] font-black text-orange-500 uppercase tracking-widest shadow-lg">Poin: {quota}</div>
-            <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="p-2 border border-white/10 rounded-xl hover:bg-white/5 transition-all"><User size={20} /></button>
+            <div className="bg-orange-500/10 border border-orange-500/20 px-3 py-1.5 rounded-full text-[9px] font-black text-orange-500 uppercase tracking-widest">Poin: {quota}</div>
+            <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="p-2 border border-white/10 rounded-xl hover:bg-white/5 transition-all active:scale-95"><User size={20} /></button>
             {isProfileOpen && (
               <div className="absolute right-6 mt-48 w-56 bg-[#1E293B] border border-white/10 rounded-2xl shadow-2xl z-[60] overflow-hidden">
                 <div className="p-4 border-b border-white/5 bg-white/5"><p className="text-[10px] font-black uppercase text-blue-500 mb-1">{userCategory}</p><p className="text-xs font-bold truncate text-slate-400">{user?.email}</p></div>
@@ -299,7 +327,6 @@ export default function GuugieHyperFinalPage() {
           </div>
         </header>
 
-        {/* --- CHAT AREA RESTORED --- */}
         <div className="flex-1 min-h-0 relative overflow-hidden">
           <div ref={scrollContainerRef} key={`chat-container-${currentChatId || 'new'}`} className="absolute inset-0 overflow-y-auto custom-scrollbar touch-pan-y overscroll-contain scroll-smooth">
             <div className="max-w-4xl mx-auto p-4 lg:p-8 flex flex-col items-center">
@@ -326,37 +353,38 @@ export default function GuugieHyperFinalPage() {
           </div>
         </div>
 
-        {/* --- INPUT & FOOTER RESTORED --- */}
         <div className="shrink-0 p-3 lg:p-8 pb-10 bg-gradient-to-t from-[#0B101A] via-[#0B101A] to-transparent z-40">
           <div className="max-w-4xl mx-auto relative">
-            {pendingFile && (
-              <div className="absolute -top-20 left-0 w-full p-4 bg-[#1E293B] border border-blue-500/30 rounded-2xl flex items-center gap-4 shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom-2">
-                <FileText className="text-blue-500" size={20} />
-                <p className="text-[10px] font-black uppercase truncate flex-1">{pendingFile.name}</p>
-                <button onClick={() => setPendingFile(null)}><X size={16} /></button>
-              </div>
-            )}
-            
-            <div className="mb-4">
-              <button onClick={() => setIsModeMenuOpen(!isModeMenuOpen)} className="flex items-center gap-2 px-4 py-2 bg-[#1E293B] border border-white/10 rounded-xl text-[9px] font-black uppercase shadow-xl">
-                <span className="text-blue-500">{researchMode}</span><ChevronDown size={12} />
+            {/* FIX 4: Dropdown Cari Ide Visibility --- */}
+            <div className="relative mb-4 z-[100]">
+              <button onClick={() => setIsModeMenuOpen(!isModeMenuOpen)} className="flex items-center gap-2 px-4 py-2 bg-[#1E293B] border border-white/10 rounded-xl text-[9px] font-black uppercase shadow-xl hover:border-blue-500/50 transition-all">
+                <span className="text-blue-500">{researchMode}</span><ChevronDown size={12} className={`transition-all ${isModeMenuOpen ? 'rotate-180' : ''}`} />
               </button>
+              {isModeMenuOpen && userCategory && (
+                <div className="absolute bottom-full mb-3 left-0 w-64 bg-[#1E293B] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 z-[200]">
+                  {CATEGORY_MODES[userCategory].map((mode) => (
+                    <button key={mode.id} onClick={() => { setResearchMode(mode.id); setIsModeMenuOpen(false); }} className="w-full text-left p-4 hover:bg-white/5 border-b border-white/5 last:border-0">
+                      <p className="text-[10px] font-black uppercase text-slate-200">{mode.id}</p>
+                      <p className="text-[8px] text-slate-500 font-bold uppercase">{mode.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <div className="bg-[#1E293B] border border-white/10 rounded-[30px] p-2 lg:p-3 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex items-end gap-3 backdrop-blur-sm focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
-              <button onClick={() => fileInputRef.current?.click()} className="p-3 lg:p-4 text-slate-500 hover:bg-white/5 rounded-2xl shadow-xl transition-all active:scale-95"><Paperclip size={20} /></button>
+            <div className="bg-[#1E293B] border border-white/10 rounded-[30px] p-2 lg:p-3 shadow-2xl flex items-end gap-3 backdrop-blur-sm focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+              <button onClick={() => fileInputRef.current?.click()} className="p-3 lg:p-4 text-slate-500 hover:bg-white/5 rounded-2xl transition-all active:scale-95"><Paperclip size={20} /></button>
               <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
               <textarea ref={textAreaRef} rows={1} value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())} placeholder="Diskusi..." className="flex-1 bg-transparent border-none outline-none p-3 text-[16px] md:text-[14px] resize-none max-h-40 custom-scrollbar" style={{ fontSize: '16px' }} />
-              <button onClick={handleMicClick} className={`p-3 lg:p-4 rounded-2xl shadow-xl transition-all active:scale-95 ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-slate-500 hover:text-red-500'}`}><Mic size={20} /></button>
-              <button onClick={handleSendMessage} disabled={isLoading} className="p-4 lg:p-5 bg-blue-600 text-white rounded-[20px] shadow-[0_10px_20px_rgba(37,99,235,0.3)] active:scale-95 transition-all">{isLoading ? <Loader2 className="animate-spin" /> : <Send size={20} />}</button>
+              <button onClick={handleMicClick} className={`p-3 lg:p-4 rounded-2xl transition-all active:scale-95 ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-slate-500 hover:text-red-500'}`}><Mic size={20} /></button>
+              <button onClick={handleSendMessage} disabled={isLoading} className="p-4 lg:p-5 bg-blue-600 text-white rounded-[20px] shadow-xl active:scale-95 transition-all">{isLoading ? <Loader2 className="animate-spin" /> : <Send size={20} />}</button>
             </div>
 
-            {/* FULL FOOTER RESTORED */}
             <footer className="mt-8 flex flex-wrap justify-center gap-x-8 gap-y-2 text-[10px] font-black uppercase tracking-widest text-white/20 transition-all">
-              <button className="hover:text-blue-500">Library</button>
-              <button className="hover:text-blue-500">Terms</button>
-              <button className="hover:text-blue-500">Privacy</button>
-              <button className="hover:text-blue-400">Kritik & Saran</button>
+              <button onClick={() => setActiveModal('library')} className="hover:text-blue-500">Library</button>
+              <button onClick={() => setActiveModal('terms')} className="hover:text-blue-500">Terms</button>
+              <button onClick={() => setActiveModal('privacy')} className="hover:text-blue-500">Privacy</button>
+              <button onClick={() => setActiveModal('feedback')} className="hover:text-blue-400">Kritik & Saran</button>
               <p className="w-full text-center mt-2 text-[8px] opacity-50">© 2026 GUUG LABS</p>
             </footer>
           </div>
