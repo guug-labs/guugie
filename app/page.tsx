@@ -77,14 +77,13 @@ export default function GuugieHyperFinalPage() {
     setTimeout(() => setToastAlert(null), 4000);
   };
 
-  // --- FIX 1: Geometric Font & iOS Input Style ---
+  // --- FIX 1: Geometric Font (Lexend) & iOS Reset ---
   useEffect(() => {
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
     const style = document.createElement('style');
-    // Injeksi Font Lexend (Geometric Sans)
     style.innerHTML = `
-      @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;700;900&display=swap');
-      body, html { font-family: 'Lexend', sans-serif !important; }
+      @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap');
+      * { font-family: 'Lexend', sans-serif !important; font-weight: 400; }
+      .font-black { font-weight: 700 !important; }
       @media screen and (max-width: 768px) { 
         textarea, input { font-size: 16px !important; transform: scale(1) !important; } 
       }
@@ -93,15 +92,14 @@ export default function GuugieHyperFinalPage() {
     return () => { document.head.removeChild(style); };
   }, []);
 
-  // --- FIX 2: Mic iOS User Gesture ---
+  // --- FIX 2: Mic iOS Permissions ---
   const handleMicClick = async () => {
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    if (isIOS) {
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         stream.getTracks().forEach(track => track.stop());
         startListening();
-      } catch (err) { triggerAlert("Aktifkan Mic di Settings Safari"); }
+      } catch (err) { triggerAlert("Izinkan Mic di Settings browser ya"); }
     } else { startListening(); }
   };
 
@@ -112,18 +110,18 @@ export default function GuugieHyperFinalPage() {
     const recognition = new SpeechRecognition();
     recognition.lang = 'id-ID';
     recognition.continuous = false;
-    recognition.onstart = () => { setIsListening(true); triggerAlert("🎤 Mendengarkan..."); };
+    recognition.onstart = () => { setIsListening(true); triggerAlert("Mendengarkan..."); };
     recognition.onend = () => { setIsListening(false); recognitionRef.current = null; };
     recognition.onresult = (e: any) => {
       const transcript = e.results[0][0].transcript;
       setInputText(prev => prev + (prev ? " " : "") + transcript);
-      triggerAlert("✓ Berhasil!");
     };
-    recognition.onerror = () => { setIsListening(false); triggerAlert("Mic Timeout/Error"); };
+    recognition.onerror = () => setIsListening(false);
     recognitionRef.current = recognition;
-    try { recognition.start(); } catch (err) { triggerAlert("Gagal!"); }
+    try { recognition.start(); } catch (err) { triggerAlert("Gagal memulai Mic."); }
   };
 
+  // --- CORE LOGIC ---
   const handleSelectChat = async (chatId: string) => {
     setIsSidebarOpen(false);
     if (currentChatId === chatId) return;
@@ -208,7 +206,7 @@ export default function GuugieHyperFinalPage() {
         setMessages(prev => [...prev, { role: 'assistant', content: data.content }]);
         setQuota(prev => prev - 1);
       }
-    } catch (error) { triggerAlert("Server AI Sibuk."); } 
+    } catch (error) { triggerAlert("Server AI sedang sibuk."); } 
     finally { setIsLoading(false); }
   };
 
@@ -223,8 +221,8 @@ export default function GuugieHyperFinalPage() {
       if (uploadError) throw uploadError;
       const { data: { publicUrl } } = supabase.storage.from('research-files').getPublicUrl(filePath);
       setPendingFile({ name: file.name, url: publicUrl });
-      triggerAlert(`${file.name} Siap!`);
-    } catch (error) { triggerAlert("Gagal!"); } 
+      triggerAlert(`${file.name} siap dikirim!`);
+    } catch (error) { triggerAlert("Gagal upload file."); } 
     finally { setIsUploading(false); }
   };
 
@@ -248,21 +246,31 @@ export default function GuugieHyperFinalPage() {
 
   const handleLogout = async () => { await supabase.auth.signOut(); router.push("/login"); };
 
-  // --- FIX 3: Modal TOS Content ---
-  const Modal = ({ title, type, children }: { title: string, type: string, children?: React.ReactNode }) => (
+  // --- FIX 3: Modal Content TOS & Privacy ---
+  const Modal = ({ title, type }: { title: string, type: string }) => (
     <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-[#0B101A]/95 backdrop-blur-2xl">
       <div className="bg-[#1E293B] border border-white/10 w-full max-w-2xl rounded-[30px] overflow-hidden shadow-2xl relative">
         <button onClick={() => setActiveModal(null)} className="absolute top-4 right-4 p-2 hover:bg-white/10 rounded-xl transition-all text-slate-400 hover:text-white z-10"><X size={20}/></button>
-        <div className="p-6 border-b border-white/5 bg-white/5"><h3 className="text-xs font-black uppercase tracking-widest text-blue-500">{title}</h3></div>
+        <div className="p-6 border-b border-white/5 bg-white/5"><h3 className="text-xs font-bold uppercase tracking-widest text-blue-500">{title}</h3></div>
         <div className="p-6 max-h-[60vh] overflow-y-auto text-sm text-slate-300 custom-scrollbar leading-relaxed">
           {type === 'terms' ? (
-            <div className="space-y-4 font-medium">
-              <p>1. Layanan Guugie adalah asisten riset berbasis AI.</p>
-              <p>2. Penggunaan poin (quota) berlaku untuk setiap pesan yang dikirim ke AI.</p>
-              <p>3. Dilarang menggunakan layanan untuk konten ilegal atau melanggar hak cipta.</p>
-              <p>4. Data Anda aman dan terenkripsi di server kami.</p>
+            <div className="space-y-4">
+              <p className="font-semibold text-white">Ketentuan Layanan Guugie</p>
+              <p>1. Guugie adalah platform asisten riset berbasis AI yang dirancang untuk membantu produktivitas akademik dan profesional.</p>
+              <p>2. Setiap pesan yang dikirimkan akan mengurangi saldo Poin (Quota) Anda sesuai dengan tarif yang berlaku.</p>
+              <p>3. Dilarang keras menggunakan Guugie untuk menghasilkan konten ilegal, berbahaya, atau melanggar hak kekayaan intelektual orang lain.</p>
+              <p>4. Guugie tidak menjamin akurasi 100% dari setiap respon yang dihasilkan, pengguna diharapkan melakukan verifikasi ulang.</p>
             </div>
-          ) : children}
+          ) : type === 'privacy' ? (
+            <div className="space-y-4">
+              <p className="font-semibold text-white">Kebijakan Privasi</p>
+              <p>1. Kami menghargai privasi Anda. Semua riwayat percakapan Anda disimpan dengan aman dan hanya dapat diakses oleh Anda.</p>
+              <p>2. Kami tidak membagikan atau menjual data pribadi Anda kepada pihak ketiga mana pun.</p>
+              <p>3. File yang Anda unggah ke sistem kami akan dihapus secara otomatis sesuai kebijakan retensi data kami.</p>
+            </div>
+          ) : (
+            <p>Konten sedang disiapkan. Hubungi admin untuk bantuan lebih lanjut.</p>
+          )}
         </div>
       </div>
     </div>
@@ -271,35 +279,47 @@ export default function GuugieHyperFinalPage() {
   if (isLoadingSession) return <div className="flex h-screen w-full items-center justify-center bg-[#0B101A]"><Loader2 className="animate-spin text-blue-600" /></div>;
 
   return (
-    <div className="flex h-[100dvh] bg-[#0B101A] text-slate-200 overflow-hidden font-sans">
+    <div className="flex h-[100dvh] bg-[#0B101A] text-slate-200 overflow-hidden">
       
       {activeModal && <Modal title={activeModal.toUpperCase()} type={activeModal} />}
-      {toastAlert?.show && <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[500] bg-blue-600 px-6 py-3 rounded-full font-black text-[10px] uppercase shadow-2xl animate-in slide-in-from-top-4">{toastAlert.msg}</div>}
+      {toastAlert?.show && <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[500] bg-blue-600 px-6 py-2 rounded-full text-[10px] font-bold uppercase shadow-2xl animate-in slide-in-from-top-4">{toastAlert.msg}</div>}
 
-      {/* --- SIDEBAR FIX: Visible Buttons --- */}
+      {/* --- SIDEBAR: Footer Links Moved Here --- */}
       <aside className={`fixed lg:relative z-[100] h-[100dvh] lg:h-full top-0 left-0 transition-all duration-500 bg-[#0F172A] border-r border-white/5 flex flex-col ${isSidebarOpen ? "w-72 shadow-2xl translate-x-0" : "w-72 -translate-x-full lg:w-0 lg:translate-x-0 overflow-hidden"}`}>
         <div className="w-72 flex flex-col h-full p-6 shrink-0">
-          <button onClick={() => { setCurrentChatId(null); setMessages([]); setIsSidebarOpen(false); setIsInitialLoad(true); }} className="w-full flex items-center justify-center gap-3 bg-blue-600 p-4 rounded-2xl font-black text-[10px] uppercase shadow-xl active:scale-95 transition-all"><Plus size={16} /> New Chat</button>
+          <button onClick={() => { setCurrentChatId(null); setMessages([]); setIsSidebarOpen(false); setIsInitialLoad(true); }} className="w-full flex items-center justify-center gap-3 bg-blue-600 p-4 rounded-2xl font-bold text-[10px] uppercase shadow-xl transition-all"><Plus size={16} /> New Chat</button>
+          
           <div className="mt-10 flex-1 overflow-y-auto custom-scrollbar">
-            <h3 className="text-[10px] uppercase tracking-widest text-slate-500 font-black mb-6 px-2">History</h3>
+            <h3 className="text-[9px] uppercase tracking-widest text-slate-500 font-bold mb-6 px-2">Riwayat Percakapan</h3>
             {history.map((chat) => (
               <div key={chat.id} className="group flex items-center gap-2 mb-3">
                 {editingChatId === chat.id ? (
                   <div className="flex-1 flex items-center gap-2 bg-white/5 p-2 rounded-xl border border-blue-500/30">
-                    <input autoFocus className="bg-transparent border-none outline-none text-[11px] font-bold w-full" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleRenameChat(chat.id)} />
+                    <input autoFocus className="bg-transparent border-none outline-none text-[11px] w-full" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleRenameChat(chat.id)} />
                     <button onClick={() => handleRenameChat(chat.id)} className="text-blue-500"><Check size={14} /></button>
                   </div>
                 ) : (
-                  <button onClick={() => handleSelectChat(chat.id)} className={`flex-1 text-left p-4 rounded-xl text-[11px] border transition-all font-bold ${currentChatId === chat.id ? 'bg-blue-600/10 border-blue-500/50 text-blue-400' : 'bg-white/5 border-transparent hover:border-white/10'}`}>
-                    <span className="truncate w-32 inline-block">{chat.title}</span>
+                  <button onClick={() => handleSelectChat(chat.id)} className={`flex-1 text-left p-4 rounded-xl text-[11px] border transition-all ${currentChatId === chat.id ? 'bg-blue-600/10 border-blue-500/50 text-blue-400' : 'bg-white/5 border-transparent'}`}>
+                    <span className="truncate w-32 inline-block font-medium">{chat.title}</span>
                   </button>
                 )}
-                <div className="flex gap-1 opacity-100 transition-all"> {/* FIX: Force Visible */}
-                  <button onClick={() => {setEditingChatId(chat.id); setEditTitle(chat.title);}} className="p-2 text-slate-500 hover:bg-white/10 rounded-lg"><Pencil size={14} /></button>
-                  <button onClick={(e) => {e.stopPropagation(); handleDeleteChat(chat.id);}} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg"><Trash2 size={14} /></button>
+                <div className="flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all"> 
+                  <button onClick={() => {setEditingChatId(chat.id); setEditTitle(chat.title);}} className="p-2 text-slate-500 hover:text-white"><Pencil size={14} /></button>
+                  <button onClick={(e) => {e.stopPropagation(); handleDeleteChat(chat.id);}} className="p-2 text-red-500"><Trash2 size={14} /></button>
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* SIDEBAR FOOTER LINKS */}
+          <div className="pt-6 border-t border-white/5 space-y-4">
+            <div className="flex flex-wrap gap-x-4 gap-y-2 text-[10px] font-bold uppercase text-slate-500">
+              <button onClick={() => setActiveModal('terms')} className="hover:text-blue-500">Terms</button>
+              <button onClick={() => setActiveModal('privacy')} className="hover:text-blue-500">Privacy</button>
+              <button onClick={() => setActiveModal('library')} className="hover:text-blue-500">Library</button>
+              <button onClick={() => setActiveModal('feedback')} className="hover:text-blue-400">Feedback</button>
+            </div>
+            <p className="text-[8px] opacity-30 font-bold uppercase tracking-widest">© 2026 GUUG LABS</p>
           </div>
         </div>
       </aside>
@@ -311,17 +331,17 @@ export default function GuugieHyperFinalPage() {
           <div className="flex items-center gap-4">
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-white/5 rounded-xl text-slate-400"><PanelLeftOpen size={22} /></button>
             <div className="flex flex-col">
-              <h1 className="text-lg lg:text-2xl font-black italic uppercase tracking-tighter">Guugie</h1>
-              <span className="text-[8px] font-black text-blue-500 uppercase tracking-widest">{userCategory} MODE</span>
+              <h1 className="text-lg lg:text-xl font-bold italic uppercase tracking-tighter text-white">Guugie</h1>
+              <span className="text-[8px] font-bold text-blue-500 uppercase tracking-widest">{userCategory} MODE</span>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="bg-orange-500/10 border border-orange-500/20 px-3 py-1.5 rounded-full text-[9px] font-black text-orange-500 uppercase tracking-widest">Poin: {quota}</div>
-            <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="p-2 border border-white/10 rounded-xl hover:bg-white/5 transition-all active:scale-95"><User size={20} /></button>
+            <div className="bg-orange-500/10 border border-orange-500/20 px-3 py-1.5 rounded-full text-[9px] font-bold text-orange-500 uppercase">Poin: {quota}</div>
+            <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="p-2 border border-white/10 rounded-xl hover:bg-white/5 transition-all"><User size={20} /></button>
             {isProfileOpen && (
               <div className="absolute right-6 mt-48 w-56 bg-[#1E293B] border border-white/10 rounded-2xl shadow-2xl z-[60] overflow-hidden">
-                <div className="p-4 border-b border-white/5 bg-white/5"><p className="text-[10px] font-black uppercase text-blue-500 mb-1">{userCategory}</p><p className="text-xs font-bold truncate text-slate-400">{user?.email}</p></div>
-                <button onClick={handleLogout} className="w-full flex items-center gap-3 p-4 hover:bg-red-500/10 text-red-400 text-xs font-black uppercase"><LogOut size={16} /> Keluar</button>
+                <div className="p-4 border-b border-white/5 bg-white/5"><p className="text-[10px] font-bold uppercase text-blue-500 mb-1">{userCategory}</p><p className="text-xs font-medium truncate text-slate-400">{user?.email}</p></div>
+                <button onClick={handleLogout} className="w-full flex items-center gap-3 p-4 hover:bg-red-500/10 text-red-400 text-xs font-bold uppercase"><LogOut size={16} /> Keluar</button>
               </div>
             )}
           </div>
@@ -332,15 +352,15 @@ export default function GuugieHyperFinalPage() {
             <div className="max-w-4xl mx-auto p-4 lg:p-8 flex flex-col items-center">
               {messages.length === 0 ? (
                 <div className="mt-20 text-center animate-in fade-in duration-1000">
-                  <h2 className="text-3xl lg:text-6xl font-black uppercase italic tracking-tighter text-white">Halo {user?.user_metadata?.full_name?.split(' ')[0] || 'Researcher'},</h2>
-                  <p className="text-[10px] lg:text-sm text-slate-500 font-black uppercase tracking-[0.4em] mt-6">Siap Bekerja Sebagai {userCategory}?</p>
+                  <h2 className="text-3xl lg:text-5xl font-bold uppercase italic tracking-tighter text-white">Halo {user?.user_metadata?.full_name?.split(' ')[0] || 'Researcher'},</h2>
+                  <p className="text-[10px] lg:text-xs text-slate-500 font-bold uppercase tracking-[0.4em] mt-6">Pilih mode diskusi untuk memulai riset Anda.</p>
                 </div>
               ) : (
-                <div className="w-full space-y-6 pb-32">
+                <div className="w-full space-y-6 pb-40">
                   {messages.map((m, i) => (
                     <div key={`${currentChatId}-${i}`} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} ${!isInitialLoad ? 'animate-in fade-in duration-300' : 'animate-in slide-in-from-bottom-4'}`}>
-                      <div className={`max-w-[88%] lg:max-w-[80%] p-3 md:p-5 lg:p-7 rounded-[24px] md:rounded-[36px] text-[13px] lg:text-[15px] border shadow-2xl ${m.role === 'user' ? 'bg-[#1E293B] border-white/5 rounded-tr-none' : 'bg-blue-600/5 border-blue-500/10 rounded-tl-none'}`}>
-                        <div className="prose prose-invert prose-sm lg:prose-base max-w-none text-slate-100 leading-tight !prose-p:m-0 [&_p]:!m-0 [&_p]:!mb-1">
+                      <div className={`max-w-[88%] lg:max-w-[80%] p-4 md:p-5 lg:p-6 rounded-[24px] md:rounded-[30px] text-[13px] lg:text-[14px] border shadow-xl ${m.role === 'user' ? 'bg-[#1E293B] border-white/5 rounded-tr-none' : 'bg-blue-600/5 border-blue-500/10 rounded-tl-none'}`}>
+                        <div className="prose prose-invert prose-sm lg:prose-base max-w-none text-slate-100 leading-relaxed !prose-p:m-0 [&_p]:!m-0 [&_p]:!mb-2">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                         </div>
                       </div>
@@ -353,40 +373,45 @@ export default function GuugieHyperFinalPage() {
           </div>
         </div>
 
-        <div className="shrink-0 p-3 lg:p-8 pb-10 bg-gradient-to-t from-[#0B101A] via-[#0B101A] to-transparent z-40">
-          <div className="max-w-4xl mx-auto relative">
-            {/* FIX 4: Dropdown Cari Ide Visibility --- */}
-            <div className="relative mb-4 z-[100]">
-              <button onClick={() => setIsModeMenuOpen(!isModeMenuOpen)} className="flex items-center gap-2 px-4 py-2 bg-[#1E293B] border border-white/10 rounded-xl text-[9px] font-black uppercase shadow-xl hover:border-blue-500/50 transition-all">
-                <span className="text-blue-500">{researchMode}</span><ChevronDown size={12} className={`transition-all ${isModeMenuOpen ? 'rotate-180' : ''}`} />
+        {/* --- INPUT AREA: STICKY BOTTOM ON MOBILE, FOOTER REMOVED --- */}
+        <div className="shrink-0 p-3 lg:p-8 pb-4 lg:pb-6 bg-gradient-to-t from-[#0B101A] via-[#0B101A] to-transparent z-40">
+          <div className="max-w-4xl mx-auto relative flex flex-col items-center">
+            {pendingFile && (
+              <div className="w-full mb-3 p-4 bg-[#1E293B] border border-blue-500/30 rounded-2xl flex items-center gap-4 shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom-2">
+                <FileText className="text-blue-500" size={18} />
+                <p className="text-[10px] font-bold uppercase truncate flex-1">{pendingFile.name}</p>
+                <button onClick={() => setPendingFile(null)}><X size={16} /></button>
+              </div>
+            )}
+            
+            <div className="w-full flex justify-start mb-3">
+              <button onClick={() => setIsModeMenuOpen(!isModeMenuOpen)} className="flex items-center gap-2 px-4 py-2 bg-[#1E293B] border border-white/10 rounded-xl text-[9px] font-bold uppercase shadow-xl hover:border-blue-500/30 transition-all">
+                <span className="text-blue-500">{researchMode}</span><ChevronDown size={12} className={isModeMenuOpen ? 'rotate-180 transition-all' : 'transition-all'} />
               </button>
               {isModeMenuOpen && userCategory && (
                 <div className="absolute bottom-full mb-3 left-0 w-64 bg-[#1E293B] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 z-[200]">
                   {CATEGORY_MODES[userCategory].map((mode) => (
-                    <button key={mode.id} onClick={() => { setResearchMode(mode.id); setIsModeMenuOpen(false); }} className="w-full text-left p-4 hover:bg-white/5 border-b border-white/5 last:border-0">
-                      <p className="text-[10px] font-black uppercase text-slate-200">{mode.id}</p>
-                      <p className="text-[8px] text-slate-500 font-bold uppercase">{mode.desc}</p>
+                    <button key={mode.id} onClick={() => { setResearchMode(mode.id); setIsModeMenuOpen(false); }} className="w-full text-left p-4 hover:bg-white/5 border-b border-white/5 last:border-0 transition-all">
+                      <p className="text-[10px] font-bold uppercase text-slate-200">{mode.id}</p>
+                      <p className="text-[8px] text-slate-500 font-bold uppercase tracking-tight">{mode.desc}</p>
                     </button>
                   ))}
                 </div>
               )}
             </div>
 
-            <div className="bg-[#1E293B] border border-white/10 rounded-[30px] p-2 lg:p-3 shadow-2xl flex items-end gap-3 backdrop-blur-sm focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
-              <button onClick={() => fileInputRef.current?.click()} className="p-3 lg:p-4 text-slate-500 hover:bg-white/5 rounded-2xl transition-all active:scale-95"><Paperclip size={20} /></button>
+            <div className="w-full bg-[#1E293B] border border-white/10 rounded-[28px] md:rounded-[34px] p-1.5 md:p-2 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex items-end gap-1.5 backdrop-blur-sm focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+              <button onClick={() => fileInputRef.current?.click()} className="p-3.5 text-slate-500 hover:bg-white/5 rounded-2xl transition-all active:scale-95"><Paperclip size={20} /></button>
               <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-              <textarea ref={textAreaRef} rows={1} value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())} placeholder="Diskusi..." className="flex-1 bg-transparent border-none outline-none p-3 text-[16px] md:text-[14px] resize-none max-h-40 custom-scrollbar" style={{ fontSize: '16px' }} />
-              <button onClick={handleMicClick} className={`p-3 lg:p-4 rounded-2xl transition-all active:scale-95 ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-slate-500 hover:text-red-500'}`}><Mic size={20} /></button>
-              <button onClick={handleSendMessage} disabled={isLoading} className="p-4 lg:p-5 bg-blue-600 text-white rounded-[20px] shadow-xl active:scale-95 transition-all">{isLoading ? <Loader2 className="animate-spin" /> : <Send size={20} />}</button>
+              <textarea ref={textAreaRef} rows={1} value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())} placeholder="Diskusi..." className="flex-1 bg-transparent border-none outline-none p-3 text-[16px] md:text-[14px] resize-none max-h-40 custom-scrollbar placeholder:text-slate-600" style={{ fontSize: '16px' }} />
+              <button onClick={handleMicClick} className={`p-3.5 rounded-2xl transition-all active:scale-95 ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-slate-500 hover:text-red-500'}`}><Mic size={20} /></button>
+              <button onClick={handleSendMessage} disabled={isLoading} className="p-4 bg-blue-600 text-white rounded-[22px] shadow-xl active:scale-95 transition-all">{isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <Send size={20} />}</button>
             </div>
 
-            <footer className="mt-8 flex flex-wrap justify-center gap-x-8 gap-y-2 text-[10px] font-black uppercase tracking-widest text-white/20 transition-all">
-              <button onClick={() => setActiveModal('library')} className="hover:text-blue-500">Library</button>
-              <button onClick={() => setActiveModal('terms')} className="hover:text-blue-500">Terms</button>
-              <button onClick={() => setActiveModal('privacy')} className="hover:text-blue-500">Privacy</button>
-              <button onClick={() => setActiveModal('feedback')} className="hover:text-blue-400">Kritik & Saran</button>
-              <p className="w-full text-center mt-2 text-[8px] opacity-50">© 2026 GUUG LABS</p>
-            </footer>
+            {/* CALM DISCLAIMER (DESKTOP ONLY) */}
+            <p className="mt-3 text-[10px] text-slate-500 font-medium hidden lg:block text-center opacity-60">
+              Guugie bisa saja salah, jadi tolong dicek lagi ya jawabannya.
+            </p>
           </div>
         </div>
       </main>
