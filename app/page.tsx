@@ -8,187 +8,229 @@ import remarkGfm from 'remark-gfm';
 import mammoth from "mammoth"; 
 import { 
   Plus, Send, Mic, Paperclip, User, X, Loader2, Trash2,
-  Check, Pencil, LogOut, PanelLeftOpen, FileText, Sparkles, Zap, BrainCircuit
+  Check, Pencil, LogOut, PanelLeftOpen, FileText, ChevronDown, 
+  ShieldCheck, Info, Zap, MessageSquare, Globe
 } from "lucide-react";
 
-// --- TYPES ---
-interface Message { id?: string; role: 'user' | 'assistant'; content: string; }
-interface Chat { id: string; title: string; created_at: string; }
-
-const ACADEMIA_MODELS = {
-  "MIMO": { id: "xiaomi/mimo-v2-flash", label: "Mimo", points: 0, engine: "Mimo V2", loading: "Guugie sedang berpikir..." },
-  "GEMINI": { id: "google/gemini-2.5-flash", label: "Gemini", points: 10, engine: "Gemini 2.5 Flash", loading: "Guugie sedang memproses file..." },
-  "DEEPSEEK": { id: "deepseek/deepseek-v3.2", label: "DeepSeek", points: 5, engine: "DeepSeek V3.2", loading: "Guugie sedang mencari argumen..." }
+// --- KATEGORI AI (GUUGIE STYLE) ---
+const GUUGIE_MODELS = {
+  "QUICK": { id: "xiaomi/mimo-v2-flash", label: "Guugie Cepat", points: 0, sub: "Respon instan", loading: "Guugie sedang berpikir..." },
+  "REASON": { id: "deepseek/deepseek-v3.2", label: "Guugie Nalar", points: 5, sub: "Analisis mendalam", loading: "Guugie mencari argumen..." },
+  "PRO": { id: "google/gemini-2.5-flash", label: "Guugie Pro", points: 10, sub: "Riset & File", loading: "Guugie memproses dokumen..." }
 } as const;
 
-export default function GuugieHyperFinalPage() {
+export default function GuugieUltraMasterPage() {
   const router = useRouter();
   const supabase = useMemo(() => createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   ), []);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // --- REFS ---
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [isLoadingSession, setIsLoadingSession] = useState(true); 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [toastAlert, setToastAlert] = useState<{ show: boolean; msg: string } | null>(null);
-  const [inputText, setInputText] = useState("");
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [history, setHistory] = useState<Chat[]>([]);
+  // --- STATES ---
+  const [messages, setMessages] = useState<any[]>([]);
+  const [history, setHistory] = useState<any[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
-  const [quota, setQuota] = useState(0); 
-  const [user, setUser] = useState<any>(null);
+  const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<keyof typeof ACADEMIA_MODELS>("MIMO");
-  const [extractedText, setExtractedText] = useState(""); 
-  const [pendingFile, setPendingFile] = useState<{ name: string; url: string } | null>(null);
+  const [isLoadingSession, setIsLoadingSession] = useState(true);
+  const [selectedKasta, setSelectedKasta] = useState<keyof typeof GUUGIE_MODELS>("QUICK");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isKastaOpen, setIsKastaOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [quota, setQuota] = useState(0);
+  const [pendingFile, setPendingFile] = useState<any>(null);
+  const [extractedText, setExtractedText] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [modal, setModal] = useState<string | null>(null);
 
-  const currentModel = useMemo(() => ACADEMIA_MODELS[selectedModel], [selectedModel]);
+  // --- LOAD DATA ---
+  const loadData = useCallback(async (uid: string) => {
+    const [{ data: hist }, { data: prof }] = await Promise.all([
+      supabase.from("chats").select("*").eq("user_id", uid).order("created_at", { ascending: false }),
+      supabase.from("profiles").select("quota").eq("id", uid).single()
+    ]);
+    if (hist) setHistory(hist);
+    if (prof) setQuota(prof.quota);
+  }, [supabase]);
 
-  const triggerAlert = useCallback((msg: string) => {
-    setToastAlert({ show: true, msg });
-    setTimeout(() => setToastAlert(null), 3000);
-  }, []);
-
-  // --- CLEANUP & CLICK OUTSIDE ---
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (isProfileOpen && !(e.target as Element).closest('.profile-menu')) setIsProfileOpen(false);
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => {
-      document.removeEventListener('click', handleClickOutside);
-      if (pendingFile?.url) URL.revokeObjectURL(pendingFile.url);
-    };
-  }, [isProfileOpen, pendingFile]);
-
-  // --- HANDLERS ---
-  const handleModelChange = (key: keyof typeof ACADEMIA_MODELS) => {
-    if (pendingFile && key !== "GEMINI") {
-      if (!window.confirm("File memerlukan model Gemini untuk analisis optimal. Tetap ganti?")) return;
-    }
-    setSelectedModel(key);
-  };
-
-  const saveMessage = async (chatId: string, role: 'user' | 'assistant', content: string) => {
-    try {
-      await supabase.from("messages").insert([{ chat_id: chatId, role, content }]);
-    } catch (e) { console.error("Save error:", e); }
-  };
-
-  // --- LOAD DATA (isMounted Pattern) ---
-  useEffect(() => {
-    let isMounted = true;
     const init = async () => {
       const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) { router.push("/login"); return; }
-      if (isMounted) setUser(authUser);
-      const [prof, chats] = await Promise.all([
-        supabase.from("profiles").select("quota").eq("id", authUser.id).single(),
-        supabase.from("chats").select("*").eq("user_id", authUser.id).order('created_at', { ascending: false })
-      ]);
-      if (isMounted && prof.data) setQuota(prof.data.quota);
-      if (isMounted && chats.data) setHistory(chats.data);
-      if (isMounted) setIsLoadingSession(false);
+      if (!authUser) return router.push("/login");
+      setUser(authUser);
+      await loadData(authUser.id);
+      setIsLoadingSession(false);
     };
     init();
-    return () => { isMounted = false; };
-  }, [router, supabase]);
+  }, [router, supabase, loadData]);
 
   useEffect(() => {
-    let isMounted = true;
     if (!currentChatId) { setMessages([]); return; }
-    const load = async () => {
-      const { data } = await supabase.from("messages").select("*").eq("chat_id", currentChatId).order('created_at', { ascending: true });
-      if (isMounted && data) setMessages(data);
+    const loadMsg = async () => {
+      const { data } = await supabase.from("messages").select("*").eq("chat_id", currentChatId).order("created_at", { ascending: true });
+      if (data) setMessages(data);
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     };
-    load();
-    return () => { isMounted = false; };
+    loadMsg();
   }, [currentChatId, supabase]);
 
-  const handleSendMessage = useCallback(async () => {
+  useEffect(() => {
+    if (textAreaRef.current) {
+      textAreaRef.current.style.height = "auto";
+      textAreaRef.current.style.height = `${Math.min(textAreaRef.current.scrollHeight, 180)}px`;
+    }
+  }, [inputText]);
+
+  // --- ACTIONS ---
+  const handleSendMessage = async () => {
+    const model = GUUGIE_MODELS[selectedKasta];
     const isAdmin = user?.email === 'guuglabs@gmail.com';
-    if (selectedModel === "MIMO" && inputText.length > 100) return triggerAlert("Max 100 karakter");
+    
+    // ANTI-DUPLIKAT GUARD
     if (isLoading || (!inputText.trim() && !extractedText)) return;
-    if (!isAdmin && quota < currentModel.points) return triggerAlert("Poin habis");
+    if (!isAdmin && quota < model.points) return alert("Poin tidak cukup!");
 
     setIsLoading(true);
-    let cid = currentChatId;
     const msg = inputText;
+    setInputText("");
+    
+    let cid = currentChatId;
+    if (!cid) {
+      const { data } = await supabase.from("chats").insert([{ user_id: user.id, title: msg.slice(0, 30) || "Chat Baru" }]).select().single();
+      cid = data?.id;
+      setCurrentChatId(cid);
+      setHistory(prev => [data, ...prev]);
+    }
+
+    setMessages(prev => [...prev, { role: "user", content: msg }]);
+    await supabase.from("messages").insert([{ chat_id: cid, role: "user", content: msg }]);
 
     try {
-      if (!cid) {
-        const { data } = await supabase.from("chats").insert([{ user_id: user?.id, title: msg.substring(0, 30) || "Chat Baru" }]).select().single();
-        if (data) { cid = data.id; setCurrentChatId(cid); setHistory(h => [data, ...h]); }
-      }
-      
-      setMessages(m => [...m, { role: 'user', content: msg }]);
-      setInputText("");
-      await saveMessage(cid as string, 'user', msg);
-
-      const res = await fetch('/api/gemini', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId: cid, message: msg, modelId: currentModel.id, fileContent: extractedText, isAdmin }),
+      const res = await fetch("/api/gemini", {
+        method: "POST",
+        body: JSON.stringify({ chatId: cid, message: msg, modelId: model.id, fileContent: extractedText, isAdmin })
       });
-      const d = await res.json();
-      
-      if (!d.error) {
-        setMessages(m => [...m, { role: 'assistant', content: d.content }]);
-        await saveMessage(cid as string, 'assistant', d.content);
-        if (!isAdmin) setQuota(q => q - currentModel.points);
-        if (pendingFile) {
-          URL.revokeObjectURL(pendingFile.url);
-          setPendingFile(null); setExtractedText("");
-        }
+      const data = await res.json();
+      if (data.content) {
+        setMessages(prev => [...prev, { role: "assistant", content: data.content }]);
+        loadData(user.id);
       }
-    } catch { triggerAlert("Gagal kirim"); } finally { setIsLoading(false); }
-  }, [inputText, extractedText, selectedModel, user, quota, isLoading, currentChatId, currentModel, pendingFile, supabase, triggerAlert]);
+    } catch (e) { alert("Sistem sibuk."); } finally {
+      setIsLoading(false);
+      setPendingFile(null);
+      setExtractedText("");
+    }
+  };
 
-  // --- UI RENDER ---
-  if (isLoadingSession) return <div className="flex h-screen w-full items-center justify-center bg-[#131314] text-blue-500"><Loader2 className="animate-spin" /></div>;
+  const handleFileUpload = async (e: any) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setPendingFile(file);
+    if (file.name.endsWith(".docx")) {
+      const res = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+      setExtractedText(res.value);
+    } else {
+      setExtractedText(await file.text());
+    }
+    setSelectedKasta("PRO");
+  };
+
+  if (isLoadingSession) return <div className="flex h-[100dvh] items-center justify-center bg-[#131314]"><Loader2 className="animate-spin text-blue-500" /></div>;
 
   return (
-    <div className="flex h-[100dvh] bg-[#131314] text-[#e3e3e3] overflow-hidden">
+    <div className="flex h-[100dvh] bg-[#131314] text-[#e3e3e3] overflow-hidden font-sans">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
-        * { font-family: 'Inter', sans-serif !important; text-transform: none !important; font-style: normal !important; font-weight: 400; }
+        * { font-family: 'Inter', sans-serif !important; -webkit-tap-highlight-color: transparent; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 10px; }
+        @media (max-width: 768px) { .prose { font-size: 14px; } }
       `}</style>
 
-      {toastAlert?.show && <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[500] bg-[#303132] border border-[#444746] px-6 py-2 rounded-lg text-sm shadow-xl">{toastAlert.msg}</div>}
+      {/* MODAL (TOS, PRIVACY, FEEDBACK) */}
+      {modal && (
+        <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setModal(null)}>
+          <div className="bg-[#1e1f20] p-6 rounded-3xl border border-white/10 max-w-sm w-full animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+            <h3 className="text-xl font-bold mb-4">{modal}</h3>
+            <div className="text-sm text-[#9aa0a6] space-y-4">
+              {modal === 'TOS' && <p>Gunakan asisten ini untuk riset akademik profesional. Poin Anda akan di-reset otomatis menjadi 100 setiap jam 00:00 WIB.</p>}
+              {modal === 'PRIVACY' && <p>Kami sangat menjaga privasi. File dokumen yang Anda unggah hanya diproses sementara untuk analisis AI dan tidak disimpan permanen.</p>}
+              {modal === 'FEEDBACK' && <p>Masukan Anda sangat berharga bagi perkembangan Guugie. Kirim saran/feedback ke: guuglabs@gmail.com.</p>}
+            </div>
+            <button onClick={() => setModal(null)} className="w-full mt-6 py-3 bg-[#303132] rounded-xl font-bold transition-all hover:bg-[#444746]">Tutup</button>
+          </div>
+        </div>
+      )}
 
-      <aside className={`fixed lg:relative z-[100] h-full transition-all duration-300 bg-[#1e1f20] border-r border-[#444746] ${isSidebarOpen ? "w-64" : "w-0 lg:w-0 overflow-hidden"}`}>
-        <div className="w-64 p-4 flex flex-col h-full">
-          <button onClick={() => { setCurrentChatId(null); setIsSidebarOpen(false); }} className="flex items-center gap-3 bg-[#303132] hover:bg-[#444746] p-3 rounded-full text-sm font-medium transition-all shadow-sm">
-            <Plus size={18} /> Chat Baru
+      {/* SIDEBAR (RENAME, DELETE, LEGAL, POWERED BY) */}
+      <aside className={`fixed lg:relative z-[250] h-full transition-all duration-300 bg-[#1e1f20] border-r border-white/5 ${isSidebarOpen ? "w-72" : "w-0 lg:w-0 overflow-hidden"}`}>
+        <div className="w-72 p-4 flex flex-col h-full">
+          <button onClick={() => { setCurrentChatId(null); setMessages([]); setIsSidebarOpen(false); }} className="flex items-center gap-3 bg-[#303132] hover:bg-[#444746] p-4 rounded-2xl text-sm font-medium transition-all shadow-xl">
+            <Plus size={20} /> Chat Baru
           </button>
-          <div className="mt-8 flex-1 overflow-y-auto custom-scrollbar">
-            {history.map((c) => (
-              <button key={c.id} onClick={() => { setCurrentChatId(c.id); setIsSidebarOpen(false); }} className={`w-full text-left p-3 rounded-lg text-sm truncate transition-colors ${currentChatId === c.id ? 'bg-[#303132] text-white font-medium' : 'text-[#e3e3e3] hover:bg-[#303132]'}`}>
-                {c.title}
-              </button>
+          <div className="mt-8 flex-1 overflow-y-auto space-y-1 custom-scrollbar">
+            {history.map(chat => (
+              <div key={chat.id} className={`group flex items-center justify-between p-3 rounded-xl hover:bg-[#303132] ${currentChatId === chat.id ? 'bg-[#303132]' : ''}`}>
+                <button onClick={() => { setCurrentChatId(chat.id); setIsSidebarOpen(false); }} className="flex-1 text-left text-sm truncate pr-2">{chat.title}</button>
+                <div className="hidden group-hover:flex items-center gap-2">
+                  <button onClick={async (e) => { e.stopPropagation(); const t = prompt("Ubah Nama:", chat.title); if(t) { await supabase.from("chats").update({title: t}).eq("id", chat.id); loadData(user.id); } }}><Pencil size={14} /></button>
+                  <button onClick={async (e) => { e.stopPropagation(); if(confirm("Hapus?")) { await supabase.from("chats").delete().eq("id", chat.id); loadData(user.id); if(currentChatId===chat.id) setMessages([]); } }} className="text-red-400"><Trash2 size={14} /></button>
+                </div>
+              </div>
             ))}
+          </div>
+
+          <div className="mt-auto pt-4 border-t border-white/5 space-y-4">
+            {/* RESET INFO */}
+            <div className="p-3 bg-blue-500/5 rounded-xl border border-blue-500/10">
+              <div className="flex items-center gap-2 mb-1"><Zap size={12} className="text-blue-500" /><p className="text-[10px] font-bold uppercase text-blue-400">Daily Reset</p></div>
+              <p className="text-[9px] text-[#9aa0a6] leading-tight font-black italic">Poin di-reset menjadi 100 setiap jam 00:00.</p>
+            </div>
+            {/* POWERED BY */}
+            <div className="px-2">
+              <p className="text-[10px] uppercase font-bold text-[#444746] mb-1 leading-none">Powered By</p>
+              <div className="flex gap-2 opacity-30 grayscale hover:grayscale-0 transition-all">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/8/8a/Google_Gemini_logo.svg" className="h-3" alt="Gemini" />
+                <span className="text-[9px] font-black uppercase italic tracking-tighter">DeepSeek</span>
+              </div>
+            </div>
+            {/* LEGAL LINKS */}
+            <div className="flex gap-4 text-[10px] font-bold text-[#9aa0a6] px-2 uppercase tracking-tighter">
+              <button onClick={() => setModal('TOS')} className="hover:text-white transition-colors">TOS</button>
+              <button onClick={() => setModal('PRIVACY')} className="hover:text-white transition-colors">PRIVACY</button>
+              <button onClick={() => setModal('FEEDBACK')} className="hover:text-white transition-colors">FEEDBACK</button>
+            </div>
+            <p className="text-[9px] text-[#444746] px-2 font-black italic uppercase tracking-widest leading-none">© 2026 GUUG LABS.</p>
           </div>
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col min-w-0 h-full relative">
-        <header className="flex items-center justify-between p-4">
+      {/* MAIN CONTENT */}
+      <main className="flex-1 flex flex-col relative h-full min-w-0">
+        <header className="flex items-center justify-between p-4 lg:px-6">
           <div className="flex items-center gap-4">
-            <button onClick={(e) => { e.stopPropagation(); setIsSidebarOpen(!isSidebarOpen); }} className="p-2 hover:bg-[#303132] rounded-full transition-all text-[#9aa0a6]"><PanelLeftOpen size={20} /></button>
-            <h1 className="text-xl font-medium tracking-tight">Guugie</h1>
+            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-[#303132] rounded-full transition-all text-[#9aa0a6]"><PanelLeftOpen size={20} /></button>
+            <h1 className="text-xl font-black italic uppercase tracking-tighter">Guugie</h1>
           </div>
           <div className="flex items-center gap-4 relative">
-            <div className="text-sm font-medium text-[#9aa0a6]">{quota} Pts</div>
-            <button onClick={(e) => { e.stopPropagation(); setIsProfileOpen(!isProfileOpen); }} className="p-2 hover:bg-[#303132] rounded-full transition-all text-[#9aa0a6]"><User size={20} /></button>
+            <span className="text-sm font-bold text-blue-500">{quota} Pts</span>
+            <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="w-8 h-8 rounded-full bg-[#303132] flex items-center justify-center border border-white/5 overflow-hidden transition-transform active:scale-90 shadow-lg">
+               {user?.user_metadata?.avatar_url ? <img src={user.user_metadata.avatar_url} /> : <User size={16} />}
+            </button>
             {isProfileOpen && (
-              <div className="profile-menu absolute right-0 top-12 bg-[#1e1f20] border border-[#444746] rounded-xl shadow-2xl z-[60] overflow-hidden min-w-[150px]">
-                <button onClick={async () => { await supabase.auth.signOut(); router.push("/login"); }} className="w-full flex items-center gap-3 p-4 hover:bg-red-500/10 text-red-400 text-sm font-medium transition-colors"><LogOut size={16} /> Keluar</button>
+              <div className="absolute right-0 top-12 bg-[#1e1f20] border border-white/10 rounded-2xl shadow-2xl z-[260] w-52 overflow-hidden animate-in fade-in zoom-in-95">
+                <div className="p-4 border-b border-white/5 text-xs">
+                  <p className="font-bold text-white truncate">{user?.user_metadata?.name || 'User'}</p>
+                  <p className="text-[#9aa0a6] truncate">{user?.email}</p>
+                </div>
+                <button onClick={() => supabase.auth.signOut().then(() => router.push("/login"))} className="w-full flex items-center gap-3 p-4 hover:bg-red-500/10 text-red-400 text-xs font-bold transition-colors">
+                  <LogOut size={16} /> Keluar
+                </button>
               </div>
             )}
           </div>
@@ -197,50 +239,80 @@ export default function GuugieHyperFinalPage() {
         <div className="flex-1 overflow-y-auto custom-scrollbar px-4">
           <div className="max-w-3xl mx-auto py-10">
             {messages.length === 0 ? (
-              <div className="mt-20">
-                <h2 className="text-4xl font-medium text-white mb-2">Halo {user?.user_metadata?.name?.split(' ')[0] || 'Guug'},</h2>
-                <p className="text-[#9aa0a6] text-xl font-normal leading-relaxed">Ada yang bisa saya bantu hari ini?</p>
+              <div className="mt-20 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                <h2 className="text-4xl md:text-5xl font-medium text-white tracking-tight italic uppercase font-black">Halo {user?.user_metadata?.name?.split(' ')[0] || 'GUUG'},</h2>
+                <p className="text-[#9aa0a6] text-xl font-normal leading-relaxed tracking-tight">Ada yang bisa saya bantu hari ini?</p>
               </div>
             ) : (
-              <div className="space-y-10 pb-20">
+              <div className="space-y-10 pb-32">
                 {messages.map((m, i) => (
                   <div key={i} className={`flex gap-4 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] p-4 rounded-2xl ${m.role === 'user' ? 'bg-[#303132]' : ''}`}>
-                      <div className="prose prose-invert max-w-none text-[15px] leading-relaxed">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
-                      </div>
+                    <div className={`max-w-[85%] p-4 rounded-2xl ${m.role === 'user' ? 'bg-[#303132]' : 'border border-white/5'}`}>
+                      <div className="prose prose-invert max-w-none text-[15px] leading-relaxed"><ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown></div>
                     </div>
                   </div>
                 ))}
-                {isLoading && <div className="text-sm text-[#9aa0a6] font-medium animate-pulse">{currentModel.loading}</div>}
+                {isLoading && <div className="text-sm text-[#9aa0a6] animate-pulse italic font-bold pl-2 tracking-tight">{GUUGIE_MODELS[selectedKasta].loading}</div>}
                 <div ref={chatEndRef} />
               </div>
             )}
           </div>
         </div>
 
+        {/* INPUT BOX AREA */}
         <div className="p-4 lg:p-10">
-          <div className="max-w-3xl mx-auto">
-            <div className="grid grid-cols-3 gap-3 mb-6">
-              {Object.entries(ACADEMIA_MODELS).map(([key, model]) => (
-                <button key={key} onClick={() => handleModelChange(key as any)} className={`p-4 rounded-xl border transition-all text-center flex flex-col items-center gap-1 ${selectedModel === key ? 'border-blue-500 bg-[#1e1f20]' : 'border-[#444746] hover:bg-[#1e1f20]'}`}>
-                  <span className="text-sm font-medium">{model.label}</span>
-                  <span className="text-[10px] text-[#9aa0a6] font-normal">{model.points} Pts</span>
-                </button>
-              ))}
-            </div>
-            <div className="bg-[#1e1f20] rounded-[28px] border border-transparent focus-within:border-[#444746] p-2 flex items-end gap-2 shadow-sm transition-all">
-              <button onClick={() => fileInputRef.current?.click()} className="p-3 text-[#c4c7c5] hover:bg-[#303132] rounded-full transition-all"><Paperclip size={20} /></button>
+          <div className="max-w-3xl mx-auto relative">
+            {pendingFile && <div className="mb-2 inline-flex items-center gap-2 bg-[#303132] px-3 py-1.5 rounded-xl text-xs text-blue-400 border border-blue-500/20 animate-in slide-in-from-bottom-2"><FileText size={14} /> {pendingFile.name} <button onClick={() => setPendingFile(null)}><X size={14} /></button></div>}
+            
+            <div className="bg-[#1e1f20] rounded-[28px] p-2 flex flex-col border border-transparent focus-within:border-[#444746] shadow-2xl transition-all">
               <textarea 
                 ref={textAreaRef} rows={1} value={inputText} 
                 onChange={(e) => setInputText(e.target.value)} 
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
-                placeholder="Masukkan perintah di sini" 
-                className="flex-1 bg-transparent border-none outline-none p-3 text-base text-[#e3e3e3] resize-none max-h-40 custom-scrollbar placeholder:text-[#9aa0a6]" 
+                onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }} 
+                placeholder="Tanyakan riset atau akademik Anda..." 
+                className="w-full bg-transparent border-none outline-none p-4 text-base resize-none max-h-40 custom-scrollbar placeholder-[#9aa0a6]" 
               />
-              <button onClick={handleSendMessage} disabled={isLoading || (!inputText.trim() && !extractedText)} className={`p-3 rounded-full transition-all ${inputText.trim() || extractedText ? 'text-blue-500 hover:bg-[#303132]' : 'text-[#444746] cursor-not-allowed'}`}>
-                {isLoading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
-              </button>
+              <div className="flex items-center justify-between px-2 pb-1">
+                <div className="flex items-center gap-1 relative">
+                  {/* MODEL SELECTOR */}
+                  <button onClick={() => setIsKastaOpen(!isKastaOpen)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#303132] rounded-xl text-xs font-bold text-[#9aa0a6] transition-colors border border-white/5">
+                    {GUUGIE_MODELS[selectedKasta].label} <ChevronDown size={14} />
+                  </button>
+                  {/* ATTACH FILE */}
+                  <button onClick={() => fileInputRef.current?.click()} className="p-2 hover:bg-[#303132] rounded-xl text-[#9aa0a6] transition-colors"><Paperclip size={20} /></button>
+                  <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+                  {/* VOICE INPUT */}
+                  <button onClick={() => { 
+                    const Speech = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition; 
+                    if (!Speech) return alert("Browser tidak mendukung voice."); 
+                    const rec = new Speech(); rec.lang = "id-ID"; 
+                    rec.onstart = () => setIsRecording(true); 
+                    rec.onend = () => setIsRecording(false); 
+                    rec.onresult = (e: any) => setInputText(prev => prev + " " + e.results[0][0].transcript); 
+                    rec.start(); 
+                  }} className={`p-2 hover:bg-[#303132] rounded-xl text-[#9aa0a6] transition-colors ${isRecording ? 'text-red-500 animate-pulse' : ''}`}><Mic size={20} /></button>
+                  
+                  {isKastaOpen && (
+                    <div className="absolute bottom-12 left-0 bg-[#1e1f20] border border-white/10 rounded-2xl shadow-2xl p-2 w-64 z-[260] animate-in slide-in-from-bottom-2">
+                      {Object.entries(GUUGIE_MODELS).map(([key, cfg]) => (
+                        <button key={key} onClick={() => { setSelectedKasta(key as any); setIsKastaOpen(false); }} className={`w-full flex flex-col p-3 rounded-xl text-left transition-colors hover:bg-[#303132] ${selectedKasta === key ? 'bg-[#303132] border border-white/5' : ''}`}>
+                          <span className="text-sm font-bold">{cfg.label}</span>
+                          <span className="text-[10px] text-[#9aa0a6]">{cfg.sub} ({cfg.points} Pts)</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button onClick={handleSendMessage} disabled={isLoading} className={`p-2 rounded-full transition-all ${inputText.trim() || extractedText ? 'text-white' : 'text-[#444746]'}`}>
+                  {isLoading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
+                </button>
+              </div>
+            </div>
+            
+            <div className="mt-4 pb-4">
+               <p className="text-[10px] md:text-[11px] text-[#9aa0a6] text-center font-medium opacity-60 italic tracking-tight">
+                 Guugie dapat membuat kesalahan, jadi periksa kembali responsnya.
+               </p>
             </div>
           </div>
         </div>

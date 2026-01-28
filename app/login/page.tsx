@@ -9,47 +9,57 @@ export default function LoginPage() {
   );
 
   const handleGoogleLogin = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
+    // Tambahin loading dikit biar user tau tombolnya udah kepencet
+    await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: {
+      options: { 
         redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
       },
     });
-    if (error) alert("Error login: " + error.message);
   };
 
-  // FIX: Ganti min-h-screen jadi min-h-[100dvh] biar center akurat di HP
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-[#0B101A] p-4 font-black text-slate-200">
-      <div className="w-full max-w-sm space-y-8 md:space-y-10 bg-[#111827] p-6 md:p-12 rounded-[30px] md:rounded-[40px] border border-white/5 shadow-2xl text-center">
-        
-        <div className="flex flex-col items-center space-y-4">
-          <div className="relative">
-            <div className="absolute inset-0 bg-blue-600/20 blur-3xl rounded-full"></div>
+    <div className="flex min-h-[100dvh] items-center justify-center bg-[#131314] p-6 text-[#e3e3e3] font-sans selection:bg-white/10">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        * { font-family: 'Inter', sans-serif !important; -webkit-tap-highlight-color: transparent; }
+      `}</style>
+
+      <div className="w-full max-w-sm space-y-12 text-center animate-in fade-in zoom-in-95 duration-700">
+        <div className="flex flex-col items-center space-y-6">
+          <div className="relative p-1 bg-gradient-to-tr from-blue-600 to-transparent rounded-[32px] shadow-2xl shadow-blue-500/10">
             <img 
               src="/logo.png" 
-              alt="Logo Guugie" 
-              className="relative w-20 h-20 md:w-28 md:h-28 object-contain animate-pulse" 
+              alt="Logo" 
+              className="w-24 h-24 object-contain bg-[#131314] rounded-[28px] p-4" 
             />
           </div>
-          
           <div className="space-y-1">
-            <h2 className="text-4xl md:text-5xl font-black text-white uppercase tracking-tighter italic">Guugie</h2>
-            <p className="text-blue-500 text-[9px] md:text-[10px] uppercase tracking-[0.4em] font-black opacity-80">by GUUG Labs</p>
+            <h2 className="text-5xl font-[900] tracking-tighter italic uppercase text-white">Guugie</h2>
+            <p className="text-blue-500 text-[10px] uppercase tracking-[0.5em] font-black opacity-80">by GUUG LABS</p>
           </div>
         </div>
 
-        <button 
-          onClick={handleGoogleLogin} 
-          className="w-full py-4 md:py-5 bg-white text-black rounded-2xl font-black uppercase text-[10px] md:text-[11px] flex items-center justify-center gap-3 md:gap-4 hover:bg-slate-200 transition-all shadow-2xl active:scale-95"
-        >
-          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="G" />
-          Lanjut dengan Google
-        </button>
+        <div className="space-y-6">
+          <button 
+            onClick={handleGoogleLogin} 
+            className="w-full py-5 bg-white text-black rounded-full font-black uppercase text-[11px] flex items-center justify-center gap-4 hover:bg-[#e3e3e3] transition-all active:scale-95 shadow-2xl"
+          >
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="G" />
+            Lanjut dengan Google
+          </button>
 
-        <p className="text-[9px] text-slate-600 font-medium italic leading-relaxed px-2 md:px-4">
-          Gunakan akun Google untuk verifikasi secara otomatis.
-        </p>
+          <div className="flex flex-col items-center gap-2">
+            <p className="text-[10px] text-[#9aa0a6] uppercase tracking-[0.2em] font-black opacity-40">
+              Secure Academic Authentication
+            </p>
+            <div className="h-px w-8 bg-white/5"></div>
+          </div>
+        </div>
       </div>
     </div>
   );
