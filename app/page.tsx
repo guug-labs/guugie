@@ -77,13 +77,13 @@ export default function GuugieHyperFinalPage() {
     setTimeout(() => setToastAlert(null), 4000);
   };
 
-  // --- FIX 1: Geometric Font (Lexend) & iOS Reset ---
+  // --- FIX 1: Geometric Font (Outfit) & Global Calm Styling ---
   useEffect(() => {
     const style = document.createElement('style');
     style.innerHTML = `
-      @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap');
-      * { font-family: 'Lexend', sans-serif !important; font-weight: 400; }
-      .font-black { font-weight: 700 !important; }
+      @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap');
+      * { font-family: 'Outfit', sans-serif !important; font-weight: 400; letter-spacing: -0.01em; }
+      h1, h2, h3, .font-bold { font-weight: 600 !important; }
       @media screen and (max-width: 768px) { 
         textarea, input { font-size: 16px !important; transform: scale(1) !important; } 
       }
@@ -92,14 +92,15 @@ export default function GuugieHyperFinalPage() {
     return () => { document.head.removeChild(style); };
   }, []);
 
-  // --- FIX 2: Mic iOS Permissions ---
+  // --- FIX 2: Mic iOS User Gesture & Logic ---
   const handleMicClick = async () => {
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    if (isIOS) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         stream.getTracks().forEach(track => track.stop());
         startListening();
-      } catch (err) { triggerAlert("Izinkan Mic di Settings browser ya"); }
+      } catch (err) { triggerAlert("Izinkan Mic di Settings Safari"); }
     } else { startListening(); }
   };
 
@@ -121,7 +122,7 @@ export default function GuugieHyperFinalPage() {
     try { recognition.start(); } catch (err) { triggerAlert("Gagal memulai Mic."); }
   };
 
-  // --- CORE LOGIC ---
+  // --- CORE LOGIC (Supabase & Chat) ---
   const handleSelectChat = async (chatId: string) => {
     setIsSidebarOpen(false);
     if (currentChatId === chatId) return;
@@ -246,31 +247,43 @@ export default function GuugieHyperFinalPage() {
 
   const handleLogout = async () => { await supabase.auth.signOut(); router.push("/login"); };
 
-  // --- FIX 3: Modal Content TOS & Privacy ---
+  // --- FIX 3: Fully Populated Modal Content ---
   const Modal = ({ title, type }: { title: string, type: string }) => (
     <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-[#0B101A]/95 backdrop-blur-2xl">
       <div className="bg-[#1E293B] border border-white/10 w-full max-w-2xl rounded-[30px] overflow-hidden shadow-2xl relative">
         <button onClick={() => setActiveModal(null)} className="absolute top-4 right-4 p-2 hover:bg-white/10 rounded-xl transition-all text-slate-400 hover:text-white z-10"><X size={20}/></button>
-        <div className="p-6 border-b border-white/5 bg-white/5"><h3 className="text-xs font-bold uppercase tracking-widest text-blue-500">{title}</h3></div>
+        <div className="p-6 border-b border-white/5 bg-white/5"><h3 className="text-[11px] font-bold uppercase tracking-widest text-blue-500">{title}</h3></div>
         <div className="p-6 max-h-[60vh] overflow-y-auto text-sm text-slate-300 custom-scrollbar leading-relaxed">
           {type === 'terms' ? (
             <div className="space-y-4">
               <p className="font-semibold text-white">Ketentuan Layanan Guugie</p>
-              <p>1. Guugie adalah platform asisten riset berbasis AI yang dirancang untuk membantu produktivitas akademik dan profesional.</p>
-              <p>2. Setiap pesan yang dikirimkan akan mengurangi saldo Poin (Quota) Anda sesuai dengan tarif yang berlaku.</p>
-              <p>3. Dilarang keras menggunakan Guugie untuk menghasilkan konten ilegal, berbahaya, atau melanggar hak kekayaan intelektual orang lain.</p>
-              <p>4. Guugie tidak menjamin akurasi 100% dari setiap respon yang dihasilkan, pengguna diharapkan melakukan verifikasi ulang.</p>
+              <p>1. Guugie adalah platform asisten riset berbasis AI yang dirancang untuk membantu produktivitas akademik dan profesional Anda.</p>
+              <p>2. Setiap interaksi pesan akan mengurangi saldo Poin (Quota) Anda. Poin tidak dapat diuangkan kembali.</p>
+              <p>3. Pengguna bertanggung jawab penuh atas input data dan dilarang menyebarkan konten yang melanggar hukum.</p>
+              <p>4. Guugie tidak menjamin keakuratan mutlak jawaban AI. Harap lakukan verifikasi mandiri untuk data kritikal.</p>
             </div>
           ) : type === 'privacy' ? (
             <div className="space-y-4">
               <p className="font-semibold text-white">Kebijakan Privasi</p>
-              <p>1. Kami menghargai privasi Anda. Semua riwayat percakapan Anda disimpan dengan aman dan hanya dapat diakses oleh Anda.</p>
-              <p>2. Kami tidak membagikan atau menjual data pribadi Anda kepada pihak ketiga mana pun.</p>
-              <p>3. File yang Anda unggah ke sistem kami akan dihapus secara otomatis sesuai kebijakan retensi data kami.</p>
+              <p>1. Data pribadi dan riwayat percakapan Anda dienkripsi dan hanya dapat diakses melalui akun Anda.</p>
+              <p>2. Kami tidak menjual data pengguna kepada pihak ketiga. Data Anda hanya digunakan untuk meningkatkan performa asisten AI Anda.</p>
+              <p>3. File yang diunggah diproses sementara dan disimpan di penyimpanan cloud aman kami selama percakapan berlangsung.</p>
             </div>
-          ) : (
-            <p>Konten sedang disiapkan. Hubungi admin untuk bantuan lebih lanjut.</p>
-          )}
+          ) : type === 'tips' ? (
+            <div className="space-y-4 text-[13px]">
+              <p className="font-semibold text-white">Tips Riset Efektif</p>
+              <p>• Gunakan mode <strong>Cari Ide</strong> untuk memancing pertanyaan riset yang belum pernah dibahas (novelty).</p>
+              <p>• Upload file PDF jurnal Anda, lalu gunakan mode <strong>Rangkum Materi</strong> untuk bedah cepat isi jurnal.</p>
+              <p>• Sebelum presentasi, coba mode <strong>Simulasi Sidang</strong> untuk melatih mental menjawab pertanyaan dosen.</p>
+            </div>
+          ) : type === 'feedback' ? (
+            <div className="text-center py-6 space-y-4">
+              <div className="p-4 bg-white/5 rounded-2xl border border-white/5 inline-block mx-auto"><Mail size={32} className="text-blue-500" /></div>
+              <h4 className="text-white font-semibold">Ada Kritik atau Saran?</h4>
+              <p>Kami sangat menghargai masukan Anda untuk membuat Guugie lebih cerdas.</p>
+              <p className="p-3 bg-blue-600/10 border border-blue-500/20 rounded-xl text-blue-400 font-medium">guuglabs@gmail.com</p>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
@@ -281,10 +294,10 @@ export default function GuugieHyperFinalPage() {
   return (
     <div className="flex h-[100dvh] bg-[#0B101A] text-slate-200 overflow-hidden">
       
-      {activeModal && <Modal title={activeModal.toUpperCase()} type={activeModal} />}
+      {activeModal && <Modal title={activeModal === 'feedback' ? 'Kritik & Saran' : activeModal === 'terms' ? 'Terms of Service' : activeModal === 'privacy' ? 'Privacy Policy' : 'Tips Riset'} type={activeModal} />}
       {toastAlert?.show && <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[500] bg-blue-600 px-6 py-2 rounded-full text-[10px] font-bold uppercase shadow-2xl animate-in slide-in-from-top-4">{toastAlert.msg}</div>}
 
-      {/* --- SIDEBAR: Footer Links Moved Here --- */}
+      {/* --- SIDEBAR: Footer Links Integrated Here --- */}
       <aside className={`fixed lg:relative z-[100] h-[100dvh] lg:h-full top-0 left-0 transition-all duration-500 bg-[#0F172A] border-r border-white/5 flex flex-col ${isSidebarOpen ? "w-72 shadow-2xl translate-x-0" : "w-72 -translate-x-full lg:w-0 lg:translate-x-0 overflow-hidden"}`}>
         <div className="w-72 flex flex-col h-full p-6 shrink-0">
           <button onClick={() => { setCurrentChatId(null); setMessages([]); setIsSidebarOpen(false); setIsInitialLoad(true); }} className="w-full flex items-center justify-center gap-3 bg-blue-600 p-4 rounded-2xl font-bold text-[10px] uppercase shadow-xl transition-all"><Plus size={16} /> New Chat</button>
@@ -303,6 +316,7 @@ export default function GuugieHyperFinalPage() {
                     <span className="truncate w-32 inline-block font-medium">{chat.title}</span>
                   </button>
                 )}
+                {/* FIX: Force Visible Buttons in History */}
                 <div className="flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all"> 
                   <button onClick={() => {setEditingChatId(chat.id); setEditTitle(chat.title);}} className="p-2 text-slate-500 hover:text-white"><Pencil size={14} /></button>
                   <button onClick={(e) => {e.stopPropagation(); handleDeleteChat(chat.id);}} className="p-2 text-red-500"><Trash2 size={14} /></button>
@@ -311,15 +325,15 @@ export default function GuugieHyperFinalPage() {
             ))}
           </div>
 
-          {/* SIDEBAR FOOTER LINKS */}
+          {/* SIDEBAR NAVIGATION (CLEAN FOOTER) */}
           <div className="pt-6 border-t border-white/5 space-y-4">
             <div className="flex flex-wrap gap-x-4 gap-y-2 text-[10px] font-bold uppercase text-slate-500">
+              <button onClick={() => setActiveModal('tips')} className="hover:text-blue-500">Tips</button>
               <button onClick={() => setActiveModal('terms')} className="hover:text-blue-500">Terms</button>
               <button onClick={() => setActiveModal('privacy')} className="hover:text-blue-500">Privacy</button>
-              <button onClick={() => setActiveModal('library')} className="hover:text-blue-500">Library</button>
-              <button onClick={() => setActiveModal('feedback')} className="hover:text-blue-400">Feedback</button>
+              <button onClick={() => setActiveModal('feedback')} className="hover:text-blue-400">Kritik & Saran</button>
             </div>
-            <p className="text-[8px] opacity-30 font-bold uppercase tracking-widest">© 2026 GUUG LABS</p>
+            <p className="text-[8px] opacity-20 font-bold uppercase tracking-widest select-none">© 2026 GUUG LABS</p>
           </div>
         </div>
       </aside>
@@ -339,7 +353,7 @@ export default function GuugieHyperFinalPage() {
             <div className="bg-orange-500/10 border border-orange-500/20 px-3 py-1.5 rounded-full text-[9px] font-bold text-orange-500 uppercase">Poin: {quota}</div>
             <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="p-2 border border-white/10 rounded-xl hover:bg-white/5 transition-all"><User size={20} /></button>
             {isProfileOpen && (
-              <div className="absolute right-6 mt-48 w-56 bg-[#1E293B] border border-white/10 rounded-2xl shadow-2xl z-[60] overflow-hidden">
+              <div className="absolute right-6 mt-48 w-56 bg-[#1E293B] border border-white/10 rounded-2xl shadow-2xl z-[60] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                 <div className="p-4 border-b border-white/5 bg-white/5"><p className="text-[10px] font-bold uppercase text-blue-500 mb-1">{userCategory}</p><p className="text-xs font-medium truncate text-slate-400">{user?.email}</p></div>
                 <button onClick={handleLogout} className="w-full flex items-center gap-3 p-4 hover:bg-red-500/10 text-red-400 text-xs font-bold uppercase"><LogOut size={16} /> Keluar</button>
               </div>
@@ -353,7 +367,7 @@ export default function GuugieHyperFinalPage() {
               {messages.length === 0 ? (
                 <div className="mt-20 text-center animate-in fade-in duration-1000">
                   <h2 className="text-3xl lg:text-5xl font-bold uppercase italic tracking-tighter text-white">Halo {user?.user_metadata?.full_name?.split(' ')[0] || 'Researcher'},</h2>
-                  <p className="text-[10px] lg:text-xs text-slate-500 font-bold uppercase tracking-[0.4em] mt-6">Pilih mode diskusi untuk memulai riset Anda.</p>
+                  <p className="text-[10px] lg:text-xs text-slate-500 font-bold uppercase tracking-[0.4em] mt-6">Asisten riset Anda siap membantu draf pekerjaan Anda.</p>
                 </div>
               ) : (
                 <div className="w-full space-y-6 pb-40">
@@ -373,7 +387,7 @@ export default function GuugieHyperFinalPage() {
           </div>
         </div>
 
-        {/* --- INPUT AREA: STICKY BOTTOM ON MOBILE, FOOTER REMOVED --- */}
+        {/* --- INPUT AREA: STICKY BOTTOM & CALM DISCLAIMER --- */}
         <div className="shrink-0 p-3 lg:p-8 pb-4 lg:pb-6 bg-gradient-to-t from-[#0B101A] via-[#0B101A] to-transparent z-40">
           <div className="max-w-4xl mx-auto relative flex flex-col items-center">
             {pendingFile && (
@@ -401,7 +415,7 @@ export default function GuugieHyperFinalPage() {
             </div>
 
             <div className="w-full bg-[#1E293B] border border-white/10 rounded-[28px] md:rounded-[34px] p-1.5 md:p-2 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex items-end gap-1.5 backdrop-blur-sm focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
-              <button onClick={() => fileInputRef.current?.click()} className="p-3.5 text-slate-500 hover:bg-white/5 rounded-2xl transition-all active:scale-95"><Paperclip size={20} /></button>
+              <button onClick={() => fileInputRef.current?.click()} className="p-3.5 text-slate-500 hover:bg-white/5 rounded-2xl transition-all active:scale-90"><Paperclip size={20} /></button>
               <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
               <textarea ref={textAreaRef} rows={1} value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())} placeholder="Diskusi..." className="flex-1 bg-transparent border-none outline-none p-3 text-[16px] md:text-[14px] resize-none max-h-40 custom-scrollbar placeholder:text-slate-600" style={{ fontSize: '16px' }} />
               <button onClick={handleMicClick} className={`p-3.5 rounded-2xl transition-all active:scale-95 ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-slate-500 hover:text-red-500'}`}><Mic size={20} /></button>
@@ -409,7 +423,7 @@ export default function GuugieHyperFinalPage() {
             </div>
 
             {/* CALM DISCLAIMER (DESKTOP ONLY) */}
-            <p className="mt-3 text-[10px] text-slate-500 font-medium hidden lg:block text-center opacity-60">
+            <p className="mt-3 text-[10px] text-slate-500 font-medium hidden lg:block text-center opacity-60 select-none">
               Guugie bisa saja salah, jadi tolong dicek lagi ya jawabannya.
             </p>
           </div>
