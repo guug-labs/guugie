@@ -1,13 +1,12 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-export const runtime = 'edge';
+
+// Node.js Runtime (Dihapus 'edge' agar exchange session berhasil disimpan di cookies)
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
-  
-  // Karena sekarang pusatnya di app/page.tsx, default-nya adalah '/'
   const next = searchParams.get('next') ?? '/'; 
 
   if (code) {
@@ -17,16 +16,14 @@ export async function GET(request: Request) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
+          getAll() { return cookieStore.getAll(); },
           setAll(cookiesToSet) {
             try {
               cookiesToSet.forEach(({ name, value, options }) =>
                 cookieStore.set(name, value, options)
               );
             } catch (error) {
-              // Di Route Handler ini aman, tapi catch tetap ada buat jaga-jaga
+              // Aman di Route Handler
             }
           },
         },
@@ -37,11 +34,11 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     
     if (!error) {
-      // Jika sukses, lempar ke halaman utama (root)
+      // Redirect ke halaman utama dengan session aktif
       return NextResponse.redirect(`${origin}${next}`);
     }
   }
 
-  // Jika gagal, balikkan ke login dengan info error
+  // Jika gagal, balikkan ke login
   return NextResponse.redirect(`${origin}/login?error=auth-code-error`);
 }
