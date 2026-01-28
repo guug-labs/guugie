@@ -5,7 +5,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import mammoth from "mammoth"; // FIX: Import untuk baca file
+import mammoth from "mammoth"; 
 import { 
   Plus, Send, Mic, Paperclip, User, BookOpen, ShieldCheck, 
   PanelLeftClose, PanelLeftOpen, X, Loader2, Trash2,
@@ -70,7 +70,7 @@ export default function GuugieHyperFinalPage() {
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [pendingFile, setPendingFile] = useState<{ name: string; url: string } | null>(null);
-  const [extractedText, setExtractedText] = useState(""); // FIX: State penampung teks file
+  const [extractedText, setExtractedText] = useState(""); 
   const [researchMode, setResearchMode] = useState("");
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
@@ -79,7 +79,6 @@ export default function GuugieHyperFinalPage() {
     setTimeout(() => setToastAlert(null), 4000);
   };
 
-  // --- FIX: OUTFIT FONT & TABLE RESPONSIVE ---
   useEffect(() => {
     const style = document.createElement('style');
     style.innerHTML = `
@@ -89,7 +88,6 @@ export default function GuugieHyperFinalPage() {
       @media screen and (max-width: 768px) { 
         textarea, input { font-size: 16px !important; transform: scale(1) !important; } 
       }
-      /* FIX: CSS Tabel */
       table { display: block; width: 100%; overflow-x: auto; border-collapse: collapse; margin: 1.5rem 0; border-radius: 12px; }
       th, td { border: 1px solid rgba(255,255,255,0.1); padding: 12px 16px; text-align: left; min-width: 140px; }
       th { background: rgba(59, 130, 246, 0.1); font-weight: 600; color: #3b82f6; text-transform: uppercase; font-size: 10px; }
@@ -148,7 +146,6 @@ export default function GuugieHyperFinalPage() {
     return () => { document.body.style.overflow = 'auto'; };
   }, [isSidebarOpen]);
 
-  // FIX: Auto-scroll Optimized
   useEffect(() => {
     if (messages.length > 0 && !isInitialLoad) {
       const timer = setTimeout(() => {
@@ -201,7 +198,6 @@ export default function GuugieHyperFinalPage() {
       setInputText("");
       setPendingFile(null);
       
-      // FIX: Kirim fileContent ke API
       const response = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -217,19 +213,17 @@ export default function GuugieHyperFinalPage() {
       if (!data.error) {
         setMessages(prev => [...prev, { role: 'assistant', content: data.content }]);
         setQuota(prev => prev - 1);
-        setExtractedText(""); // Bersihkan teks file setelah kirim
+        // FIX: Hapus setExtractedText("") agar teks file bertahan di sesi chat
       }
     } catch (error) { triggerAlert("Server AI sibuk."); } 
     finally { setIsLoading(false); }
   };
 
-  // FIX: handleFileUpload dengan Mantra Mammoth
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
     setIsUploading(true);
 
-    // --- MANTRA BACA FILE ---
     const reader = new FileReader();
     reader.onload = async (event) => {
       const arrayBuffer = event.target?.result as ArrayBuffer;
@@ -249,7 +243,11 @@ export default function GuugieHyperFinalPage() {
       const { data: { publicUrl } } = supabase.storage.from('research-files').getPublicUrl(filePath);
       setPendingFile({ name: file.name, url: publicUrl });
     } catch (error) { triggerAlert("Gagal upload."); } 
-    finally { setIsUploading(false); }
+    finally { 
+      setIsUploading(false); 
+      // FIX: Reset input agar bisa upload file yang sama berulang kali
+      e.target.value = ""; 
+    }
   };
 
   const handleDeleteChat = async (id: string) => {
@@ -281,30 +279,29 @@ export default function GuugieHyperFinalPage() {
           {type === 'terms' ? (
             <div className="space-y-4">
               <p className="font-semibold text-white">Ketentuan Layanan Guugie</p>
-              <p>1. Layanan Guugie adalah platform asisten riset berbasis AI. Kami membantu produktivitas akademik dan profesional Anda.</p>
-              <p>2. Setiap interaksi pesan akan mengurangi saldo Poin (Quota). Poin tidak dapat diuangkan kembali.</p>
-              <p>3. Dilarang menggunakan sistem ini untuk konten ilegal, berbahaya, atau melanggar hak cipta.</p>
-              <p>4. Hasil AI mungkin tidak akurat 100%. Mohon lakukan verifikasi mandiri untuk pekerjaan penting.</p>
+              <p>1. Layanan Guugie adalah platform asisten riset berbasis AI.</p>
+              <p>2. Setiap interaksi pesan akan mengurangi saldo Poin (Quota).</p>
+              <p>3. Dilarang menggunakan sistem ini untuk konten ilegal.</p>
+              <p>4. Hasil AI mungkin tidak akurat 100%. Lakukan verifikasi mandiri.</p>
             </div>
           ) : type === 'privacy' ? (
             <div className="space-y-4">
               <p className="font-semibold text-white">Kebijakan Privasi</p>
-              <p>1. Data percakapan Anda dienkripsi dan hanya dapat diakses oleh Anda sendiri.</p>
-              <p>2. Kami tidak membagikan atau menjual data pribadi Anda kepada pihak ketiga.</p>
-              <p>3. File yang diunggah diproses secara aman dan dihapus sesuai kebijakan retensi data kami.</p>
+              <p>1. Data percakapan Anda dienkripsi.</p>
+              <p>2. Kami tidak membagikan data pribadi Anda.</p>
+              <p>3. File yang diunggah diproses secara aman.</p>
             </div>
           ) : type === 'tips' ? (
             <div className="space-y-4">
               <p className="font-semibold text-white">Tips Maksimalkan Guugie</p>
-              <p>• Gunakan mode <strong>Cari Ide</strong> untuk mendapatkan sudut pandang riset yang baru dan unik.</p>
-              <p>• Gunakan mode <strong>Rangkum Materi</strong> untuk membedah jurnal akademik yang kompleks dalam hitungan detik.</p>
-              <p>• Sebelum sidang skripsi atau meeting, gunakan mode <strong>Simulasi Sidang</strong> untuk melatih jawaban Anda.</p>
+              <p>• Gunakan mode <strong>Cari Ide</strong> untuk novelty riset.</p>
+              <p>• Gunakan mode <strong>Rangkum Materi</strong> untuk bedah jurnal.</p>
+              <p>• Gunakan mode <strong>Simulasi Sidang</strong> untuk melatih jawaban.</p>
             </div>
           ) : type === 'feedback' ? (
             <div className="text-center py-6 space-y-4">
               <div className="p-4 bg-white/5 rounded-2xl border border-white/5 inline-block mx-auto"><Mail size={32} className="text-blue-500" /></div>
               <h4 className="text-white font-semibold">Kritik & Saran</h4>
-              <p>Masukan Anda sangat berharga bagi perkembangan Guugie.</p>
               <p className="p-3 bg-blue-600/10 border border-blue-500/20 rounded-xl text-blue-400 font-medium">guuglabs@gmail.com</p>
             </div>
           ) : null}
@@ -395,14 +392,12 @@ export default function GuugieHyperFinalPage() {
                   {messages.map((m, i) => (
                     <div key={`${currentChatId}-${i}`} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} ${!isInitialLoad ? 'animate-in fade-in duration-300' : 'animate-in slide-in-from-bottom-4'}`}>
                       <div className={`max-w-[88%] lg:max-w-[80%] p-4 md:p-5 lg:p-6 rounded-[24px] md:rounded-[30px] text-[13px] lg:text-[14px] border shadow-xl ${m.role === 'user' ? 'bg-[#1E293B] border-white/5 rounded-tr-none' : 'bg-blue-600/5 border-blue-500/10 rounded-tl-none'}`}>
-                        {/* FIX: Wrapper Overflow Table */}
-                        <div className="prose prose-invert prose-sm lg:prose-base max-w-none text-slate-100 leading-relaxed !prose-p:m-0 [&_p]:!m-0 [&_p]:!mb-2 overflow-x-auto max-w-full">
+                        <div className="prose prose-invert prose-sm lg:prose-base max-w-none text-slate-100 leading-relaxed overflow-x-auto">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                         </div>
                       </div>
                     </div>
                   ))}
-                  {/* FIX: Visual Feedback Thinking */}
                   {isLoading && (
                     <div className="flex justify-start animate-pulse">
                       <div className="bg-blue-600/5 p-4 rounded-2xl border border-blue-500/10 text-xs text-blue-400 font-bold uppercase tracking-widest">Guugie sedang berpikir...</div>
@@ -427,12 +422,12 @@ export default function GuugieHyperFinalPage() {
             
             <div className="w-full flex justify-start mb-3">
               <button onClick={() => setIsModeMenuOpen(!isModeMenuOpen)} className="flex items-center gap-2 px-4 py-2 bg-[#1E293B] border border-white/10 rounded-xl text-[9px] font-bold uppercase shadow-xl hover:border-blue-500/30 transition-all">
-                <span className="text-blue-500">{researchMode}</span><ChevronDown size={12} className={isModeMenuOpen ? 'rotate-180 transition-all' : 'transition-all'} />
+                <span className="text-blue-500">{researchMode}</span><ChevronDown size={12} className={isModeMenuOpen ? 'rotate-180' : ''} />
               </button>
               {isModeMenuOpen && userCategory && (
                 <div className="absolute bottom-full mb-3 left-0 w-64 bg-[#1E293B] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 z-[200]">
                   {CATEGORY_MODES[userCategory].map((mode) => (
-                    <button key={mode.id} onClick={() => { setResearchMode(mode.id); setIsModeMenuOpen(false); }} className="w-full text-left p-4 hover:bg-white/5 border-b border-white/5 last:border-0 transition-all">
+                    <button key={mode.id} onClick={() => { setResearchMode(mode.id); setIsModeMenuOpen(false); }} className="w-full text-left p-4 hover:bg-white/5 border-b border-white/5 last:border-0">
                       <p className="text-[10px] font-bold uppercase text-slate-200">{mode.id}</p>
                       <p className="text-[8px] text-slate-500 font-bold uppercase tracking-tight">{mode.desc}</p>
                     </button>
@@ -441,17 +436,14 @@ export default function GuugieHyperFinalPage() {
               )}
             </div>
 
-            <div className="w-full bg-[#1E293B] border border-white/10 rounded-[28px] md:rounded-[34px] p-1.5 md:p-2 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex items-end gap-1.5 backdrop-blur-sm focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
-              <button onClick={() => fileInputRef.current?.click()} className="p-3.5 text-slate-500 hover:bg-white/5 rounded-2xl transition-all active:scale-90"><Paperclip size={20} /></button>
+            <div className="w-full bg-[#1E293B] border border-white/10 rounded-[28px] md:rounded-[34px] p-1.5 md:p-2 shadow-2xl flex items-end gap-1.5">
+              <button onClick={() => fileInputRef.current?.click()} className="p-3.5 text-slate-500 hover:bg-white/5 rounded-2xl transition-all"><Paperclip size={20} /></button>
               <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-              <textarea ref={textAreaRef} rows={1} value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())} placeholder="Diskusi..." className="flex-1 bg-transparent border-none outline-none p-3 text-[16px] md:text-[14px] resize-none max-h-40 custom-scrollbar placeholder:text-slate-600" style={{ fontSize: '16px' }} />
-              <button onClick={handleMicClick} className={`p-3.5 rounded-2xl transition-all active:scale-95 ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-slate-500 hover:text-red-500'}`}><Mic size={20} /></button>
-              <button onClick={handleSendMessage} disabled={isLoading} className="p-4 bg-blue-600 text-white rounded-[22px] shadow-xl active:scale-95 transition-all">{isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <Send size={20} />}</button>
+              <textarea ref={textAreaRef} rows={1} value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())} placeholder="Diskusi..." className="flex-1 bg-transparent border-none outline-none p-3 text-[16px] md:text-[14px] resize-none max-h-40 custom-scrollbar placeholder:text-slate-600" />
+              <button onClick={handleMicClick} className={`p-3.5 rounded-2xl transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-slate-500 hover:text-red-500'}`}><Mic size={20} /></button>
+              <button onClick={handleSendMessage} disabled={isLoading} className="p-4 bg-blue-600 text-white rounded-[22px] shadow-xl">{isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <Send size={20} />}</button>
             </div>
-
-            <p className="mt-3 text-[10px] text-slate-500 font-medium hidden lg:block text-center opacity-60 select-none">
-              Guugie bisa saja salah, jadi tolong dicek lagi ya jawabannya.
-            </p>
+            <p className="mt-3 text-[10px] text-slate-500 font-medium hidden lg:block text-center opacity-60">Guugie bisa saja salah, jadi tolong dicek lagi ya jawabannya.</p>
           </div>
         </div>
       </main>
