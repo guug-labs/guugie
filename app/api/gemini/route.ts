@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-// Node.js Runtime (Wajib agar cookies() berjalan lancar)
+export const runtime = 'edge'; // WAJIB ADA UNTUK CLOUDFLARE PAGES
 
 export async function POST(req: Request) {
   try {
@@ -14,19 +14,13 @@ export async function POST(req: Request) {
         cookies: {
           getAll() { return cookieStore.getAll(); },
           setAll(cookiesToSet) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                cookieStore.set(name, value, options)
-              );
-            } catch (error) {
-              // Handle in server component context
-            }
+            // Di Edge POST, cookies biasanya di-handle middleware
+            // Tapi kita biarkan pattern ini agar tidak error
           },
         },
       }
     );
 
-    // --- 1. VALIDASI INPUT & AUTH ---
     const body = await req.json();
     const { chatId, message, modelId, fileContent, isAdmin } = body;
 
@@ -36,10 +30,9 @@ export async function POST(req: Request) {
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
-      return NextResponse.json({ error: "Sesi habis, silakan login ulang" }, { status: 401 });
+      return NextResponse.json({ error: "Sesi habis, silakan login" }, { status: 401 });
     }
 
-    // --- 2. SISTEM POIN (SINKRON DENGAN PAGE.TSX) ---
     const validModels: Record<string, number> = {
       "google/gemini-2.5-flash": 10,
       "deepseek/deepseek-v3.2": 5,
@@ -48,21 +41,17 @@ export async function POST(req: Request) {
 
     const cost = validModels[modelId] ?? 0;
 
-    // Admin (guuglabs@gmail.com) bebas biaya
     if (!isAdmin && cost > 0) {
       const { data: profile } = await supabase.from('profiles').select('quota').eq('id', user.id).single();
-      
       if (!profile || profile.quota < cost) {
         return NextResponse.json({ error: "Saldo poin tidak cukup" }, { status: 403 });
       }
-
       await supabase.from('profiles').update({ quota: profile.quota - cost }).eq("id", user.id);
     }
 
-    // --- 3. PROMPT & OPENROUTER API ---
     const systemPrompt = `Anda adalah Guugie, asisten riset akademik profesional. 
-    Berikan jawaban yang akurat, santun, dan sangat membantu mahasiswa atau peneliti. 
-    Gunakan format markdown untuk struktur yang jelas.`;
+    Berikan jawaban akurat, santun, dan formal dalam Bahasa Indonesia. 
+    Gunakan markdown untuk struktur yang jelas.`;
 
     const finalPrompt = fileContent 
       ? `KONTEKS DOKUMEN:\n${fileContent}\n\n---\nPERTANYAAN USER:\n${message}`
@@ -88,12 +77,9 @@ export async function POST(req: Request) {
     if (!response.ok) throw new Error("Gagal menghubungi server AI");
 
     const aiData = await response.json();
-    const aiContent = aiData.choices[0]?.message?.content || "Maaf, gagal memproses respons.";
-    
-    // Hapus tag thinking DeepSeek agar output bersih
+    const aiContent = aiData.choices[0]?.message?.content || "Maaf, gagal memproses.";
     const cleanResponse = aiContent.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
 
-    // --- 4. SIMPAN KE DATABASE ---
     if (chatId) {
       await supabase.from('messages').insert([{ 
         chat_id: chatId, 
@@ -106,7 +92,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ content: cleanResponse });
 
   } catch (error: any) {
-    console.error("Route handler error:", error);
-    return NextResponse.json({ error: "Sistem sedang sibuk" }, { status: 500 });
+    console.error("Route error:", error);
+    return NextResponse.json({ error: "Sistem sibuk" }, { status: 500 });
   }
 }

@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
-// Node.js Runtime (Dihapus 'edge' agar exchange session berhasil disimpan di cookies)
+export const runtime = 'edge'; // WAJIB ADA UNTUK CLOUDFLARE PAGES
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -22,23 +22,15 @@ export async function GET(request: Request) {
               cookiesToSet.forEach(({ name, value, options }) =>
                 cookieStore.set(name, value, options)
               );
-            } catch (error) {
-              // Aman di Route Handler
-            }
+            } catch (error) { /* Ignore */ }
           },
         },
       }
     );
     
-    // Tukar kode login dari Google menjadi session aktif
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    
-    if (!error) {
-      // Redirect ke halaman utama dengan session aktif
-      return NextResponse.redirect(`${origin}${next}`);
-    }
+    if (!error) return NextResponse.redirect(`${origin}${next}`);
   }
 
-  // Jika gagal, balikkan ke login
   return NextResponse.redirect(`${origin}/login?error=auth-code-error`);
 }
