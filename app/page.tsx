@@ -5,6 +5,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import mammoth from "mammoth"; // FIX: Import untuk baca file
 import { 
   Plus, Send, Mic, Paperclip, User, BookOpen, ShieldCheck, 
   PanelLeftClose, PanelLeftOpen, X, Loader2, Trash2,
@@ -69,6 +70,7 @@ export default function GuugieHyperFinalPage() {
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [pendingFile, setPendingFile] = useState<{ name: string; url: string } | null>(null);
+  const [extractedText, setExtractedText] = useState(""); // FIX: State penampung teks file
   const [researchMode, setResearchMode] = useState("");
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
@@ -77,7 +79,7 @@ export default function GuugieHyperFinalPage() {
     setTimeout(() => setToastAlert(null), 4000);
   };
 
-  // --- FIX: OUTFIT FONT & RESET GAYA (NO ITALIC, NO ALL-CAPS) ---
+  // --- FIX: OUTFIT FONT & TABLE RESPONSIVE ---
   useEffect(() => {
     const style = document.createElement('style');
     style.innerHTML = `
@@ -87,12 +89,15 @@ export default function GuugieHyperFinalPage() {
       @media screen and (max-width: 768px) { 
         textarea, input { font-size: 16px !important; transform: scale(1) !important; } 
       }
+      /* FIX: CSS Tabel */
+      table { display: block; width: 100%; overflow-x: auto; border-collapse: collapse; margin: 1.5rem 0; border-radius: 12px; }
+      th, td { border: 1px solid rgba(255,255,255,0.1); padding: 12px 16px; text-align: left; min-width: 140px; }
+      th { background: rgba(59, 130, 246, 0.1); font-weight: 600; color: #3b82f6; text-transform: uppercase; font-size: 10px; }
     `;
     document.head.appendChild(style);
     return () => { document.head.removeChild(style); };
   }, []);
 
-  // --- MIC LOGIC (NO CHANGES) ---
   const handleMicClick = async () => {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
     if (isIOS) {
@@ -122,7 +127,6 @@ export default function GuugieHyperFinalPage() {
     try { recognition.start(); } catch (err) { triggerAlert("Gagal memulai Mic."); }
   };
 
-  // --- CORE SYSTEM (NO CHANGES) ---
   const handleSelectChat = async (chatId: string) => {
     setIsSidebarOpen(false);
     if (currentChatId === chatId) return;
@@ -144,16 +148,15 @@ export default function GuugieHyperFinalPage() {
     return () => { document.body.style.overflow = 'auto'; };
   }, [isSidebarOpen]);
 
+  // FIX: Auto-scroll Optimized
   useEffect(() => {
     if (messages.length > 0 && !isInitialLoad) {
-      const lastMsg = messages[messages.length - 1];
-      if (isLoading || lastMsg.role === 'assistant') {
-        setTimeout(() => {
-          chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-        }, 100);
-      }
+      const timer = setTimeout(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+      }, 150);
+      return () => clearTimeout(timer);
     }
-  }, [messages, isLoading, isInitialLoad]);
+  }, [messages, isLoading]);
 
   useEffect(() => {
     if (textAreaRef.current) {
@@ -197,24 +200,47 @@ export default function GuugieHyperFinalPage() {
       setMessages(prev => [...prev, { role: 'user', content: finalContent }]);
       setInputText("");
       setPendingFile(null);
+      
+      // FIX: Kirim fileContent ke API
       const response = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId, message: finalContent, mode: researchMode, category: userCategory }),
+        body: JSON.stringify({ 
+          chatId, 
+          message: finalContent, 
+          mode: researchMode, 
+          category: userCategory,
+          fileContent: extractedText 
+        }),
       });
       const data = await response.json();
       if (!data.error) {
         setMessages(prev => [...prev, { role: 'assistant', content: data.content }]);
         setQuota(prev => prev - 1);
+        setExtractedText(""); // Bersihkan teks file setelah kirim
       }
     } catch (error) { triggerAlert("Server AI sibuk."); } 
     finally { setIsLoading(false); }
   };
 
+  // FIX: handleFileUpload dengan Mantra Mammoth
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
     setIsUploading(true);
+
+    // --- MANTRA BACA FILE ---
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const arrayBuffer = event.target?.result as ArrayBuffer;
+      try {
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        setExtractedText(result.value);
+        triggerAlert("Isi file dibaca!");
+      } catch (err) { triggerAlert("Gagal baca file."); }
+    };
+    reader.readAsArrayBuffer(file);
+
     const fileName = `${Date.now()}-${file.name}`;
     const filePath = `${user.id}/${fileName}`;
     try {
@@ -222,7 +248,6 @@ export default function GuugieHyperFinalPage() {
       if (uploadError) throw uploadError;
       const { data: { publicUrl } } = supabase.storage.from('research-files').getPublicUrl(filePath);
       setPendingFile({ name: file.name, url: publicUrl });
-      triggerAlert(`${file.name} siap!`);
     } catch (error) { triggerAlert("Gagal upload."); } 
     finally { setIsUploading(false); }
   };
@@ -247,7 +272,6 @@ export default function GuugieHyperFinalPage() {
 
   const handleLogout = async () => { await supabase.auth.signOut(); router.push("/login"); };
 
-  // --- POPULATED MODAL CONTENT ---
   const Modal = ({ title, type }: { title: string, type: string }) => (
     <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-[#0B101A]/95 backdrop-blur-2xl">
       <div className="bg-[#1E293B] border border-white/10 w-full max-w-2xl rounded-[30px] overflow-hidden shadow-2xl relative">
@@ -342,9 +366,7 @@ export default function GuugieHyperFinalPage() {
           <div className="flex items-center gap-4">
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-white/5 rounded-xl text-slate-400"><PanelLeftOpen size={22} /></button>
             <div className="flex flex-col">
-              {/* BRANDING: NORMAL, SENTENCE CASE, OUTFIT */}
               <h1 className="text-lg lg:text-xl font-bold text-white">Guugie</h1>
-              {/* LABEL: NO "MODE" */}
               <span className="text-[8px] font-bold text-blue-500 uppercase tracking-widest">{userCategory}</span>
             </div>
           </div>
@@ -365,7 +387,6 @@ export default function GuugieHyperFinalPage() {
             <div className="max-w-4xl mx-auto p-4 lg:p-8 flex flex-col items-center">
               {messages.length === 0 ? (
                 <div className="mt-20 text-center animate-in fade-in duration-1000">
-                  {/* WELCOME: NORMAL, SENTENCE CASE */}
                   <h2 className="text-3xl lg:text-5xl font-bold text-white">Halo {user?.user_metadata?.full_name?.split(' ')[0] || 'Researcher'},</h2>
                   <p className="text-[10px] lg:text-xs text-slate-500 font-bold uppercase tracking-[0.4em] mt-6">Asisten riset Anda siap membantu draf pekerjaan Anda.</p>
                 </div>
@@ -374,12 +395,19 @@ export default function GuugieHyperFinalPage() {
                   {messages.map((m, i) => (
                     <div key={`${currentChatId}-${i}`} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} ${!isInitialLoad ? 'animate-in fade-in duration-300' : 'animate-in slide-in-from-bottom-4'}`}>
                       <div className={`max-w-[88%] lg:max-w-[80%] p-4 md:p-5 lg:p-6 rounded-[24px] md:rounded-[30px] text-[13px] lg:text-[14px] border shadow-xl ${m.role === 'user' ? 'bg-[#1E293B] border-white/5 rounded-tr-none' : 'bg-blue-600/5 border-blue-500/10 rounded-tl-none'}`}>
-                        <div className="prose prose-invert prose-sm lg:prose-base max-w-none text-slate-100 leading-relaxed !prose-p:m-0 [&_p]:!m-0 [&_p]:!mb-2">
+                        {/* FIX: Wrapper Overflow Table */}
+                        <div className="prose prose-invert prose-sm lg:prose-base max-w-none text-slate-100 leading-relaxed !prose-p:m-0 [&_p]:!m-0 [&_p]:!mb-2 overflow-x-auto max-w-full">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                         </div>
                       </div>
                     </div>
                   ))}
+                  {/* FIX: Visual Feedback Thinking */}
+                  {isLoading && (
+                    <div className="flex justify-start animate-pulse">
+                      <div className="bg-blue-600/5 p-4 rounded-2xl border border-blue-500/10 text-xs text-blue-400 font-bold uppercase tracking-widest">Guugie sedang berpikir...</div>
+                    </div>
+                  )}
                   <div ref={chatEndRef} />
                 </div>
               )}
