@@ -70,26 +70,19 @@ export default function GuugieFinalPage() {
     if (window.innerWidth < 1024) setIsSidebarOpen(false);
   }, []);
 
-  // ==================== LOGIC RESET POIN HARIAN (UPDATE PENTING) ====================
   const loadData = useCallback(async (uid: string) => {
-    // 1. Ambil data user
     const { data: prof } = await supabase.from("profiles").select("quota, last_reset").eq("id", uid).single();
-    
-    // 2. Cek Tanggal Hari Ini (Format: "Thu Jan 29 2026")
     const todayStr = new Date().toDateString();
 
     if (prof) {
-      // LOGIC 1: Kalau tanggal beda (hari baru) ATAU poin minus -> RESET jadi 25
       if (prof.last_reset !== todayStr || prof.quota < 0) {
         await supabase.from("profiles").update({ quota: 25, last_reset: todayStr }).eq("id", uid);
         setQuota(25);
         if(prof.last_reset !== todayStr) showToast('success', 'Poin harian direset: 25 PTS');
       } else {
-        // LOGIC 2: Kalau hari sama, pake saldo yang ada
         setQuota(prof.quota);
       }
     } else {
-      // LOGIC 3: User Baru -> Kasih 25 & Catat Tanggal
       await supabase.from("profiles").insert([{ id: uid, quota: 25, last_reset: todayStr }]); 
       setQuota(25);
     }
@@ -119,7 +112,6 @@ export default function GuugieFinalPage() {
     loadMsg();
   }, [currentChatId, supabase]);
 
-  // FIX MIC IPHONE
   const toggleMic = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) return showToast('error', 'Browser tidak support fitur suara.');
@@ -214,22 +206,67 @@ export default function GuugieFinalPage() {
 
   return (
     <div className="flex h-[100dvh] bg-[#0a0a0a] text-[#ededed] overflow-hidden font-sans">
+      
+      {/* CSS MAGIC: MATIKAN BIRU-BIRU & RAPIHKAN TEKS */}
       <style jsx global>{`
-        * { -webkit-tap-highlight-color: transparent !important; }
-        input, textarea { font-size: 16px !important; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
+        /* 1. MANTRA ANTI-BIRU NEON */
+        * { 
+          -webkit-tap-highlight-color: transparent !important; 
+          outline: none !important; 
+        }
+        input:focus, textarea:focus, button:focus {
+          outline: none !important;
+          box-shadow: none !important;
+        }
+
+        /* 2. RAPIHKAN TEKS AI (STYLE GEMINI PRO) */
+        .markdown-body { 
+          width: 100%; 
+          font-size: 15px;
+          line-height: 1.8; /* Jarak antar baris biar lega */
+          color: #d1d1d1;
+        }
+        .markdown-body p { 
+          margin-bottom: 1.5rem; /* Jarak antar paragraf */
+        }
+        .markdown-body h1, .markdown-body h2, .markdown-body h3 { 
+          color: white; 
+          font-weight: 700; 
+          margin-top: 1.8rem; 
+          margin-bottom: 1rem; 
+        }
+        .markdown-body ul, .markdown-body ol {
+          margin-bottom: 1.5rem;
+          padding-left: 1.5rem;
+        }
+        .markdown-body li {
+          margin-bottom: 0.5rem;
+        }
+
+        /* 3. TABEL ELEGAN & BISA SCROLL */
+        .markdown-body table { 
+          display: block;
+          width: 100%; 
+          overflow-x: auto; 
+          border-collapse: collapse; 
+          margin: 1.5rem 0; 
+          background: rgba(255,255,255,0.03); 
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.08);
+        }
+        .markdown-body th { background: rgba(255,255,255,0.08); padding: 12px 16px; text-align: left; color: white; }
+        .markdown-body td { padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.08); }
+
+        /* 4. FIX KETUTUP (PADDING EXTRA DI BAWAH) */
+        .chat-scroll-container {
+          padding-bottom: 280px !important; 
+        }
         
-        .markdown-body { width: 100%; overflow-x: auto; }
-        .markdown-body p { margin-bottom: 0.8rem; line-height: 1.6; color: #d4d4d4; }
-        .markdown-body h1, .markdown-body h2 { font-weight: 600; color: white; margin-top: 1.2rem; }
-        .markdown-body ul, .markdown-body ol { padding-left: 1.5rem; margin-bottom: 1rem; }
-        .markdown-body table { width: 100%; border-collapse: collapse; margin: 1rem 0; background: #171717; border-radius: 8px; min-width: 300px; }
-        .markdown-body th { background: #262626; padding: 10px; text-align: left; font-size: 13px; color: white; }
-        .markdown-body td { padding: 10px; border-top: 1px solid #333; font-size: 13px; color: #ccc; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
         .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 20px); }
       `}</style>
 
-      {/* TOAST */}
+      {/* TOAST & LEGAL MODAL TETEP SAMA */}
       {toast && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top-4 fade-in duration-300">
           <div className={`flex items-center gap-3 px-5 py-3 rounded-2xl border backdrop-blur-md shadow-2xl ${
@@ -241,7 +278,6 @@ export default function GuugieFinalPage() {
         </div>
       )}
 
-      {/* MODAL LEGAL */}
       {legalModal && (
         <div className="fixed inset-0 z-[1000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#161616] border border-white/10 rounded-2xl max-w-md w-full max-h-[80vh] flex flex-col animate-in zoom-in-95">
@@ -249,19 +285,14 @@ export default function GuugieFinalPage() {
               <h3 className="font-bold text-white">{legalModal.title}</h3>
               <button onClick={() => setLegalModal(null)} className="p-1 hover:bg-white/10 rounded-full"><X size={20} /></button>
             </div>
-            <div className="p-6 overflow-y-auto text-sm text-white/70 whitespace-pre-wrap leading-relaxed">
-              {legalModal.content}
-            </div>
+            <div className="p-6 overflow-y-auto text-sm text-white/70 whitespace-pre-wrap leading-relaxed">{legalModal.content}</div>
           </div>
         </div>
       )}
 
-      {/* SIDEBAR */}
+      {/* SIDEBAR TETEP SAMA */}
       {isSidebarOpen && <div className="fixed inset-0 bg-black/50 z-[40] lg:hidden" onClick={() => setIsSidebarOpen(false)} />}
-      
-      <aside className={`fixed inset-y-0 left-0 z-[50] w-[280px] bg-[#0f0f0f] border-r border-white/[0.04] transform transition-transform duration-300 flex flex-col ${
-        isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-      } ${!isSidebarOpen ? "lg:hidden" : "lg:flex"}`}>
+      <aside className={`fixed inset-y-0 left-0 z-[50] w-[280px] bg-[#0f0f0f] border-r border-white/[0.04] transform transition-transform duration-300 flex flex-col ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"} ${!isSidebarOpen ? "lg:hidden" : "lg:flex"}`}>
         <div className="p-5 flex items-center justify-between">
           <span className="text-xl font-bold text-white tracking-tight pl-2">Guugie</span>
           <button onClick={() => setIsSidebarOpen(false)} className="p-2 text-white/40 hover:text-white hover:bg-white/5 rounded-lg transition-colors"><PanelLeft size={20}/></button>
@@ -280,11 +311,9 @@ export default function GuugieFinalPage() {
             </div>
           ))}
         </div>
-        
         <div className="p-4 border-t border-white/[0.04] bg-[#0f0f0f] space-y-1">
-           <button onClick={() => showLegal("Syarat & Ketentuan", `TERAKHIR DIPERBARUI: JANUARI 2026\n\n1. PENGGUNAAN LAYANAN\nGuugie adalah alat bantu riset. Dilarang plagiarisme.\n\n2. DISCLAIMER AI\nOutput mungkin mengandung halusinasi.\n\n3. SISTEM POIN\nPoin non-refundable.`)} className="w-full flex items-center gap-3 p-2 text-white/40 hover:text-white hover:bg-white/5 rounded-lg text-sm transition-colors"><Shield size={16}/> Syarat & Ketentuan</button>
-           <button onClick={() => showLegal("Kebijakan Privasi", `KOMITMEN PRIVASI GUUG LABS\n\n1. DATA\nKami menyimpan riwayat chat untuk kenyamanan Anda.\n\n2. KEAMANAN\nData Anda tidak diperjualbelikan.`)} className="w-full flex items-center gap-3 p-2 text-white/40 hover:text-white hover:bg-white/5 rounded-lg text-sm transition-colors"><FileText size={16}/> Kebijakan Privasi</button>
-           <button onClick={() => window.open('mailto:guuglabs@gmail.com')} className="w-full flex items-center gap-3 p-2 text-white/40 hover:text-white hover:bg-white/5 rounded-lg text-sm transition-colors"><MessageSquare size={16}/> Kritik & Saran</button>
+           <button onClick={() => showLegal("Syarat & Ketentuan", `1. Dilarang Plagiat\n2. AI Bisa Salah\n3. Poin Hangus`)} className="w-full flex items-center gap-3 p-2 text-white/40 hover:text-white hover:bg-white/5 rounded-lg text-sm"><Shield size={16}/> ToS</button>
+           <button onClick={() => showLegal("Kebijakan Privasi", `1. Data Aman\n2. Tidak Dijual`)} className="w-full flex items-center gap-3 p-2 text-white/40 hover:text-white hover:bg-white/5 rounded-lg text-sm"><FileText size={16}/> Privasi</button>
            <div className="flex items-center gap-3 pt-3 border-t border-white/[0.04] mt-3">
              <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center">{user?.user_metadata?.avatar_url ? <img src={user.user_metadata.avatar_url} className="w-full h-full rounded-full"/> : <User size={16}/>}</div>
              <div className="flex-1 min-w-0"><p className="text-xs font-bold text-white truncate">{user?.user_metadata?.name?.split(' ')[0]}</p><p className="text-[10px] text-yellow-500 font-bold">{Math.max(0, quota ?? 0)} PTS</p></div>
@@ -293,44 +322,48 @@ export default function GuugieFinalPage() {
         </div>
       </aside>
 
-      {/* MAIN CONTENT */}
+      {/* MAIN CONTENT: SEKARANG SIMETRIS TENGAH */}
       <main className="flex-1 flex flex-col relative w-full h-full bg-[#0a0a0a]">
         <header className="h-16 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 bg-[#0a0a0a]/80 backdrop-blur-xl border-b border-white/[0.04]">
           <div className="flex items-center gap-4">
             {!isSidebarOpen && <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-white/60 hover:text-white"><PanelLeft size={20}/></button>}
-            <h1 className="text-sm font-semibold text-white/90 truncate max-w-[200px] animate-in fade-in">{currentChatId ? (history.find(h => h.id === currentChatId)?.title || "Riset Akademik") : "Riset Baru"}</h1>
+            <h1 className="text-sm font-semibold text-white/90 truncate max-w-[200px]">{currentChatId ? (history.find(h => h.id === currentChatId)?.title || "Riset Akademik") : "Riset Baru"}</h1>
           </div>
           <div className="lg:hidden flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full border border-white/[0.05]"><Zap size={12} className="text-yellow-500 fill-yellow-500"/><span className="text-xs font-bold">{Math.max(0, quota ?? 0)}</span></div>
         </header>
 
-        {/* CHAT AREA */}
-        <div className="flex-1 overflow-y-auto p-4 lg:p-0 lg:w-[800px] lg:mx-auto w-full no-scrollbar pb-48">
-          {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-[60vh] text-center opacity-40">
-              <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mb-6"><Search size={32} className="text-white/50"/></div>
-              <h2 className="text-xl font-semibold text-white mb-2">Halo, {user?.user_metadata?.name?.split(' ')[0]}</h2>
-              <p className="text-sm text-white/50 max-w-xs">Apa yang ingin kita teliti hari ini?</p>
-            </div>
-          ) : (
-            <div className="space-y-6 pt-6">
-              {messages.map((m, i) => (
-                <div key={i} className={`flex w-full ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`
-                    max-w-[90%] lg:max-w-[85%] rounded-3xl p-5 text-[15px] leading-relaxed shadow-sm
-                    ${m.role === 'user' ? 'bg-[#262626] text-white rounded-tr-sm border border-white/5' : 'bg-transparent text-[#e5e5e5] px-0 lg:px-2'}
-                  `}>
-                    {/* @ts-ignore */}
-                    <ReactMarkdown className="markdown-body" remarkPlugins={[remarkGfm]}>{m.content as string}</ReactMarkdown>
+        {/* CHAT AREA: FIX SIMETRIS & KETUTUP */}
+        <div className="flex-1 overflow-y-auto no-scrollbar">
+          <div className="max-w-3xl mx-auto px-4 lg:px-0 w-full chat-scroll-container">
+            {messages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-[60vh] text-center opacity-40">
+                <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mb-6"><Search size={32} className="text-white/50"/></div>
+                <h2 className="text-xl font-semibold text-white mb-2">Halo, {user?.user_metadata?.name?.split(' ')[0]}</h2>
+                <p className="text-sm text-white/50 max-w-xs">Apa yang ingin kita teliti hari ini?</p>
+              </div>
+            ) : (
+              <div className="space-y-8 pt-6">
+                {messages.map((m, i) => (
+                  <div key={i} className={`flex w-full ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`
+                      max-w-[85%] rounded-3xl p-5 text-[15px] shadow-sm
+                      ${m.role === 'user' 
+                        ? 'bg-[#262626] text-white rounded-tr-sm border border-white/5' 
+                        : 'bg-transparent text-[#e5e5e5] px-0'}
+                    `}>
+                      {/* @ts-ignore */}
+                      <ReactMarkdown className="markdown-body" remarkPlugins={[remarkGfm]}>{m.content as string}</ReactMarkdown>
+                    </div>
                   </div>
-                </div>
-              ))}
-              {isLoading && <div className="flex items-center gap-3 text-white/30 text-xs px-4 animate-pulse"><Loader2 className="animate-spin" size={14}/><span>{GUUGIE_MODELS[selectedKasta].loading}</span></div>}
-              <div ref={chatEndRef} />
-            </div>
-          )}
+                ))}
+                {isLoading && <div className="flex items-center gap-3 text-white/30 text-xs px-4 animate-pulse"><Loader2 className="animate-spin" size={14}/><span>{GUUGIE_MODELS[selectedKasta].loading}</span></div>}
+                <div ref={chatEndRef} />
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* INPUT AREA */}
+        {/* INPUT AREA: TETEP DI TENGAH */}
         <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent pt-12 pb-6 px-4 safe-area-bottom z-40">
           <div className="max-w-3xl mx-auto space-y-3">
             <div className="relative inline-block">
