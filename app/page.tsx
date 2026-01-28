@@ -5,8 +5,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import mammoth from "mammoth";
-import * as pdfjsLib from "pdfjs-dist";
+// HAPUS IMPORT LIBRARY BERAT DARI SINI BIAR SERVER AMAN
 import { 
   Plus, Send, Mic, MicOff, Paperclip, User, X, Loader2, Trash2,
   Pencil, PanelLeftOpen, FileText, Zap, FileUp,
@@ -15,9 +14,7 @@ import {
   ChevronDown, Moon, Sun, Globe
 } from "lucide-react";
 
-// Setup PDF Worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-
+// KONFIGURASI MODEL
 const GUUGIE_MODELS = {
   "QUICK": { 
     id: "xiaomi/mimo-v2-flash", 
@@ -63,12 +60,9 @@ export default function GuugieDeepFinalPage() {
   const [selectedKasta, setSelectedKasta] = useState<keyof typeof GUUGIE_MODELS>("QUICK");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isKastaOpen, setIsKastaOpen] = useState(false);
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
-  const [quota, setQuota] = useState<number | null>(null); // Null dulu biar ga kaget
+  const [quota, setQuota] = useState<number | null>(null);
   const [pendingFiles, setPendingFiles] = useState<any[]>([]);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recognition, setRecognition] = useState<any>(null);
   const [modal, setModal] = useState<{type: 'error' | 'info' | 'success', msg: string} | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [legalModal, setLegalModal] = useState<{title: string, content: string} | null>(null);
@@ -86,17 +80,14 @@ export default function GuugieDeepFinalPage() {
 
   // ==================== DATA LOADER ====================
   const loadData = useCallback(async (uid: string) => {
-    // 1. Load Profile & Quota
     const { data: prof } = await supabase.from("profiles").select("quota").eq("id", uid).single();
     if (prof) {
       setQuota(prof.quota);
     } else {
-      // Emergency create if trigger failed (Backup plan)
       await supabase.from("profiles").insert([{ id: uid, quota: 25 }]); 
       setQuota(25);
     }
 
-    // 2. Load History
     const { data: hist } = await supabase.from("chats").select("*").eq("user_id", uid).order("created_at", { ascending: false });
     if (hist) setHistory(hist);
   }, [supabase]);
@@ -113,7 +104,6 @@ export default function GuugieDeepFinalPage() {
     init();
   }, [router, supabase, loadData]);
 
-  // ==================== LOAD CHAT MESSAGES ====================
   useEffect(() => {
     if (!currentChatId) { setMessages([]); return; }
     const loadMsg = async () => {
@@ -124,19 +114,73 @@ export default function GuugieDeepFinalPage() {
     loadMsg();
   }, [currentChatId, supabase]);
 
-  // ==================== FILE HANDLING ====================
+  // ==================== FILE HANDLING (VERSI FINAL ANTI MERAH) ====================
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files?.length) return;
+    if (!files || files.length === 0) return; // Cek null di awal
+    
     setIsUploading(true);
     
-    // Simulate processing for UI (simplified for robustness)
-    Array.from(files).forEach(file => {
-       const newFile = { file, url: URL.createObjectURL(file), status: 'ready', extractedText: `[File: ${file.name}]` };
-       setPendingFiles(prev => [...prev, newFile]);
-       // Auto switch to PRO
-       if(selectedKasta !== "PRO") setSelectedKasta("PRO");
-    });
+    // --- 1. SAFE DYNAMIC IMPORTS ---
+    let pdfjsLib: any = null;
+    let mammoth: any = null;
+
+    try {
+      // Import PDF.js
+      const pdfModule = await import("pdfjs-dist");
+      pdfjsLib = pdfModule;
+      
+      // Set worker safe way
+      if (pdfjsLib) {
+        const ver = pdfjsLib.version || '3.11.174'; 
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${ver}/pdf.worker.min.js`;
+      }
+
+      // Import Mammoth
+      const mammothModule = await import("mammoth");
+      mammoth = mammothModule;
+    } catch (err) {
+      console.error("Library Load Error:", err);
+    }
+
+    // Ubah ke Array biasa biar loop aman
+    const fileList = Array.from(files);
+    const processedFiles: any[] = [];
+
+    // --- 2. FILE LOOP ---
+    for (const file of fileList) {
+       let textContent = `[File: ${file.name}]`;
+
+       try {
+         // Handle PDF
+         if (file.type === "application/pdf" && pdfjsLib) {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let extractedText = "";
+            for (let i = 1; i <= pdf.numPages; i++) {
+              const page = await pdf.getPage(i);
+              const content = await page.getTextContent();
+              // @ts-ignore
+              extractedText += content.items.map((item: any) => item.str).join(" ") + "\n";
+            }
+            textContent += `\n${extractedText.slice(0, 15000)}`; 
+         } 
+         // Handle DOCX
+         else if ((file.type.includes("word") || file.name.endsWith(".docx")) && mammoth) {
+            const arrayBuffer = await file.arrayBuffer();
+            const result = await mammoth.extractRawText({ arrayBuffer });
+            textContent += `\n${result.value.slice(0, 15000)}`;
+         }
+       } catch (error) {
+         console.error("Error parsing file:", error);
+         textContent += "\n(Gagal membaca file. Pastikan tidak terpassword.)";
+       }
+
+       processedFiles.push({ file, url: URL.createObjectURL(file), status: 'ready', extractedText: textContent });
+    }
+    
+    setPendingFiles(prev => [...prev, ...processedFiles]);
+    if(selectedKasta !== "PRO") setSelectedKasta("PRO");
     
     setIsUploading(false);
     showAlert('success', 'File siap dianalisis!');
@@ -160,7 +204,6 @@ export default function GuugieDeepFinalPage() {
     const msg = inputText;
     setInputText("");
 
-    // Create Chat if new
     let cid = currentChatId;
     if (!cid) {
       const { data } = await supabase.from("chats").insert([{ user_id: user.id, title: msg.slice(0, 30) }]).select().single();
@@ -171,14 +214,11 @@ export default function GuugieDeepFinalPage() {
       }
     }
 
-    // Optimistic UI Update
     setMessages(prev => [...prev, { role: "user", content: msg }]);
     
     try {
-      // Save user message
       await supabase.from("messages").insert([{ chat_id: cid, role: "user", content: msg }]);
 
-      // Call API
       const res = await fetch("/api/gemini", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -191,7 +231,7 @@ export default function GuugieDeepFinalPage() {
       const data = await res.json();
       if (data.content) {
         setMessages(prev => [...prev, { role: "assistant", content: data.content }]);
-        setQuota(prev => (prev ? prev - cost : 0)); // Update UI poin langsung
+        setQuota(prev => (prev ? prev - cost : 0)); 
       } else {
         throw new Error(data.error || "Gagal");
       }
@@ -213,7 +253,7 @@ export default function GuugieDeepFinalPage() {
         .no-scrollbar::-webkit-scrollbar { display: none; }
       `}</style>
 
-      {/* === MODAL ALERTS === */}
+      {/* MODAL ALERTS */}
       {modal && (
         <div className="fixed top-4 left-0 right-0 z-[9999] flex justify-center pointer-events-none animate-in slide-in-from-top-4">
           <div className={`flex items-center gap-3 px-6 py-3 rounded-full shadow-2xl backdrop-blur-md border ${
@@ -227,7 +267,7 @@ export default function GuugieDeepFinalPage() {
         </div>
       )}
 
-      {/* === LEGAL MODAL === */}
+      {/* LEGAL MODAL */}
       {legalModal && (
         <div className="fixed inset-0 z-[1000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#161616] border border-white/10 rounded-2xl max-w-md w-full max-h-[80vh] flex flex-col">
@@ -242,9 +282,8 @@ export default function GuugieDeepFinalPage() {
         </div>
       )}
 
-      {/* === SIDEBAR (MOBILE & DESKTOP) === */}
+      {/* SIDEBAR */}
       {isSidebarOpen && <div className="fixed inset-0 bg-black/60 z-[40] lg:hidden" onClick={() => setIsSidebarOpen(false)} />}
-      
       <aside className={`fixed inset-y-0 left-0 z-[50] w-72 bg-[#121212] border-r border-white/5 transform transition-transform duration-300 flex flex-col ${
         isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0 lg:static"
       }`}>
@@ -257,14 +296,12 @@ export default function GuugieDeepFinalPage() {
           </div>
           <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 hover:bg-white/10 rounded-lg"><X size={20}/></button>
         </div>
-
         <div className="px-4 pb-4">
           <button onClick={() => { setCurrentChatId(null); setIsSidebarOpen(false); }} className="w-full flex items-center gap-3 bg-white/5 hover:bg-white/10 border border-white/5 p-3 rounded-xl transition-all group">
             <div className="bg-blue-500/20 p-2 rounded-lg group-hover:bg-blue-500/30 text-blue-400"><Plus size={18}/></div>
             <span className="text-sm font-semibold">Chat Baru</span>
           </button>
         </div>
-
         <div className="flex-1 overflow-y-auto px-4 space-y-1 no-scrollbar">
           <p className="text-xs font-bold text-white/30 mb-2 uppercase tracking-wider">Riwayat</p>
           {history.map(chat => (
@@ -278,37 +315,16 @@ export default function GuugieDeepFinalPage() {
             </div>
           ))}
         </div>
-
-        {/* LEGAL & SUPPORT SECTION */}
         <div className="p-4 border-t border-white/5 space-y-1 bg-[#0f0f0f]">
           <p className="text-xs font-bold text-white/30 mb-2 uppercase tracking-wider">Legal & Support</p>
-          
-          <button onClick={() => showLegal("Terms of Service", "Syarat dan Ketentuan Guugie...\n\n1. Gunakan dengan bijak.\n2. Jangan lakukan hal ilegal.\n3. Guugie tidak bertanggung jawab atas kesalahan riset.")} 
-            className="w-full flex items-center gap-3 p-2 text-white/60 hover:text-white hover:bg-white/5 rounded-lg text-sm">
-            <Shield size={16} /> Terms of Service
-          </button>
-          
-          <button onClick={() => showLegal("Privacy Policy", "Kebijakan Privasi...\n\nData Anda aman dan tidak dijual. Chat history disimpan untuk kenyamanan Anda.")} 
-            className="w-full flex items-center gap-3 p-2 text-white/60 hover:text-white hover:bg-white/5 rounded-lg text-sm">
-            <FileText size={16} /> Privacy Policy
-          </button>
-          
-          <button onClick={() => window.open('mailto:guuglabs@gmail.com')} 
-            className="w-full flex items-center gap-3 p-2 text-white/60 hover:text-white hover:bg-white/5 rounded-lg text-sm">
-            <MessageSquare size={16} /> Kritik & Saran
-          </button>
-          
+          <button onClick={() => showLegal("Terms of Service", "Syarat dan Ketentuan Guugie...\n\n1. Gunakan dengan bijak.\n2. Jangan lakukan hal ilegal.\n3. Guugie tidak bertanggung jawab atas kesalahan riset.")} className="w-full flex items-center gap-3 p-2 text-white/60 hover:text-white hover:bg-white/5 rounded-lg text-sm"><Shield size={16} /> Terms of Service</button>
+          <button onClick={() => showLegal("Privacy Policy", "Kebijakan Privasi...\n\nData Anda aman dan tidak dijual. Chat history disimpan untuk kenyamanan Anda.")} className="w-full flex items-center gap-3 p-2 text-white/60 hover:text-white hover:bg-white/5 rounded-lg text-sm"><FileText size={16} /> Privacy Policy</button>
+          <button onClick={() => window.open('mailto:guuglabs@gmail.com')} className="w-full flex items-center gap-3 p-2 text-white/60 hover:text-white hover:bg-white/5 rounded-lg text-sm"><MessageSquare size={16} /> Kritik & Saran</button>
           <div className="grid grid-cols-2 gap-2 mt-2">
-            <button className="flex items-center justify-center gap-2 p-2 bg-yellow-500/10 text-yellow-500 rounded-lg text-xs font-medium hover:bg-yellow-500/20">
-              <Star size={14} /> Rate Us
-            </button>
-            <button onClick={() => window.open('https://instagram.com/guuglabs')} className="flex items-center justify-center gap-2 p-2 bg-pink-500/10 text-pink-500 rounded-lg text-xs font-medium hover:bg-pink-500/20">
-              <Instagram size={14} /> @guuglabs
-            </button>
+            <button className="flex items-center justify-center gap-2 p-2 bg-yellow-500/10 text-yellow-500 rounded-lg text-xs font-medium hover:bg-yellow-500/20"><Star size={14} /> Rate Us</button>
+            <button onClick={() => window.open('https://instagram.com/guuglabs')} className="flex items-center justify-center gap-2 p-2 bg-pink-500/10 text-pink-500 rounded-lg text-xs font-medium hover:bg-pink-500/20"><Instagram size={14} /> @guuglabs</button>
           </div>
         </div>
-
-        {/* PROFILE SECTION */}
         <div className="p-4 bg-black/20">
           <div className="flex items-center gap-3">
              <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center overflow-hidden">
@@ -318,22 +334,18 @@ export default function GuugieDeepFinalPage() {
                <p className="text-sm font-bold truncate">{user?.user_metadata?.name || "Researcher"}</p>
                <p className="text-xs text-white/40 truncate">{user?.email}</p>
              </div>
-             <button onClick={() => supabase.auth.signOut().then(() => router.push("/login"))} className="p-2 hover:bg-red-500/20 text-red-400 rounded-lg">
-               <LogOut size={18} />
-             </button>
+             <button onClick={() => supabase.auth.signOut().then(() => router.push("/login"))} className="p-2 hover:bg-red-500/20 text-red-400 rounded-lg"><LogOut size={18} /></button>
           </div>
         </div>
       </aside>
 
-      {/* === MAIN CONTENT === */}
+      {/* MAIN CONTENT */}
       <main className="flex-1 flex flex-col relative w-full h-full">
-        {/* HEADER */}
         <header className="h-16 flex items-center justify-between px-4 border-b border-white/5 bg-[#0a0a0a]/90 backdrop-blur-md sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 bg-white/5 rounded-lg"><PanelLeftOpen size={20} /></button>
             <h1 className="font-bold text-lg hidden lg:block">Riset Baru</h1>
           </div>
-          
           <div className="flex items-center gap-3 bg-white/5 px-3 py-1.5 rounded-full border border-white/10">
             <Zap size={16} className="text-yellow-400 fill-yellow-400" />
             <span className="font-bold text-sm">{quota !== null ? quota : "..."}</span>
@@ -341,7 +353,6 @@ export default function GuugieDeepFinalPage() {
           </div>
         </header>
 
-        {/* CHAT AREA */}
         <div className="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth pb-32">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center opacity-50 mt-10">
@@ -364,11 +375,8 @@ export default function GuugieDeepFinalPage() {
           <div ref={chatEndRef} />
         </div>
 
-        {/* INPUT AREA (FIXED BOTTOM) */}
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent pt-10 pb-4 px-4 safe-area-bottom z-30">
           <div className="max-w-3xl mx-auto bg-[#161616] border border-white/10 rounded-2xl shadow-2xl p-2 relative">
-            
-            {/* MODEL SELECTOR */}
             <div className="absolute -top-10 left-0 flex gap-2">
               <button onClick={() => setIsKastaOpen(!isKastaOpen)} className="flex items-center gap-2 bg-[#161616] border border-white/10 px-3 py-1.5 rounded-full text-xs font-semibold shadow-lg">
                 <span className={`w-2 h-2 rounded-full ${selectedKasta === 'QUICK' ? 'bg-green-500' : selectedKasta === 'REASON' ? 'bg-purple-500' : 'bg-blue-500'}`}></span>
@@ -376,8 +384,6 @@ export default function GuugieDeepFinalPage() {
                 <ChevronDown size={14} className={`transition-transform ${isKastaOpen ? 'rotate-180':''}`} />
               </button>
             </div>
-
-            {/* POPUP MODEL SELECT */}
             {isKastaOpen && (
               <div className="absolute bottom-full left-0 mb-2 w-56 bg-[#1a1a1a] border border-white/10 rounded-xl p-2 shadow-xl z-50 animate-in slide-in-from-bottom-2">
                 {Object.entries(GUUGIE_MODELS).map(([k, v]) => (
@@ -389,8 +395,6 @@ export default function GuugieDeepFinalPage() {
                 ))}
               </div>
             )}
-
-            {/* PENDING FILES */}
             {pendingFiles.length > 0 && (
               <div className="flex gap-2 p-2 overflow-x-auto">
                 {pendingFiles.map((f, i) => (
@@ -401,12 +405,9 @@ export default function GuugieDeepFinalPage() {
                 ))}
               </div>
             )}
-
-            {/* INPUT BOX */}
             <div className="flex items-end gap-2 p-1">
               <button onClick={() => fileInputRef.current?.click()} className="p-2 hover:bg-white/10 rounded-xl text-white/60"><Paperclip size={20}/></button>
               <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} multiple />
-              
               <textarea 
                 value={inputText} onChange={e => setInputText(e.target.value)}
                 onKeyDown={e => {if(e.key==='Enter' && !e.shiftKey){e.preventDefault(); handleSendMessage()}}}
@@ -414,14 +415,11 @@ export default function GuugieDeepFinalPage() {
                 className="flex-1 bg-transparent border-none outline-none text-sm min-h-[44px] max-h-32 py-3 resize-none"
                 rows={1}
               />
-              
               <button onClick={handleSendMessage} disabled={isLoading} className={`p-2.5 rounded-xl transition-all ${inputText.trim() ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-white/10 text-white/30'}`}>
                 {isLoading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
               </button>
             </div>
           </div>
-          
-          {/* MOBILE DISCLAIMER (STICKY BOTTOM) */}
           <p className="text-[10px] text-center text-white/20 mt-3 pb-1 safe-area-bottom">
             Guugie dapat membuat kesalahan. Harap periksa kembali.
           </p>
