@@ -70,18 +70,30 @@ export default function GuugieFinalPage() {
     if (window.innerWidth < 1024) setIsSidebarOpen(false);
   }, []);
 
+  // ==================== LOGIC RESET POIN HARIAN (UPDATE PENTING) ====================
   const loadData = useCallback(async (uid: string) => {
-    const { data: prof } = await supabase.from("profiles").select("quota").eq("id", uid).single();
+    // 1. Ambil data user
+    const { data: prof } = await supabase.from("profiles").select("quota, last_reset").eq("id", uid).single();
+    
+    // 2. Cek Tanggal Hari Ini (Format: "Thu Jan 29 2026")
+    const todayStr = new Date().toDateString();
+
     if (prof) {
-      if (prof.quota < 0) {
-        setQuota(0); await supabase.from("profiles").update({ quota: 0 }).eq("id", uid);
+      // LOGIC 1: Kalau tanggal beda (hari baru) ATAU poin minus -> RESET jadi 25
+      if (prof.last_reset !== todayStr || prof.quota < 0) {
+        await supabase.from("profiles").update({ quota: 25, last_reset: todayStr }).eq("id", uid);
+        setQuota(25);
+        if(prof.last_reset !== todayStr) showToast('success', 'Poin harian direset: 25 PTS');
       } else {
+        // LOGIC 2: Kalau hari sama, pake saldo yang ada
         setQuota(prof.quota);
       }
     } else {
-      await supabase.from("profiles").insert([{ id: uid, quota: 25 }]); 
+      // LOGIC 3: User Baru -> Kasih 25 & Catat Tanggal
+      await supabase.from("profiles").insert([{ id: uid, quota: 25, last_reset: todayStr }]); 
       setQuota(25);
     }
+    
     const { data: hist } = await supabase.from("chats").select("*").eq("user_id", uid).order("created_at", { ascending: false });
     if (hist) setHistory(hist);
   }, [supabase]);
@@ -202,28 +214,18 @@ export default function GuugieFinalPage() {
 
   return (
     <div className="flex h-[100dvh] bg-[#0a0a0a] text-[#ededed] overflow-hidden font-sans">
-      
-      {/* CSS FIX LENGKAP: ANTI BIRU, ANTI TABLE MELEDAK */}
       <style jsx global>{`
-        /* MATIKAN HIGHLIGHT BIRU DI HP */
         * { -webkit-tap-highlight-color: transparent !important; }
-        
         input, textarea { font-size: 16px !important; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         
-        /* MARKDOWN STYLE FIX */
-        .markdown-body { width: 100%; overflow-x: auto; } /* Scroll Tabel */
+        .markdown-body { width: 100%; overflow-x: auto; }
         .markdown-body p { margin-bottom: 0.8rem; line-height: 1.6; color: #d4d4d4; }
         .markdown-body h1, .markdown-body h2 { font-weight: 600; color: white; margin-top: 1.2rem; }
         .markdown-body ul, .markdown-body ol { padding-left: 1.5rem; margin-bottom: 1rem; }
-        .markdown-body table { 
-            width: 100%; border-collapse: collapse; margin: 1rem 0; 
-            background: #171717; border-radius: 8px; 
-            min-width: 300px; /* Biar tabel gak gepeng */
-        }
+        .markdown-body table { width: 100%; border-collapse: collapse; margin: 1rem 0; background: #171717; border-radius: 8px; min-width: 300px; }
         .markdown-body th { background: #262626; padding: 10px; text-align: left; font-size: 13px; color: white; }
         .markdown-body td { padding: 10px; border-top: 1px solid #333; font-size: 13px; color: #ccc; }
-        
         .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 20px); }
       `}</style>
 
@@ -279,14 +281,10 @@ export default function GuugieFinalPage() {
           ))}
         </div>
         
-        {/* LEGAL BUTTONS DENGAN TEKS LENGKAP */}
         <div className="p-4 border-t border-white/[0.04] bg-[#0f0f0f] space-y-1">
-           <button onClick={() => showLegal("Syarat & Ketentuan", `TERAKHIR DIPERBARUI: JANUARI 2026\n\n1. PENGGUNAAN LAYANAN\nGuugie adalah alat bantu riset (Research Assistant). Pengguna dilarang keras menggunakan output Guugie untuk tindakan plagiarisme atau kecurangan akademik.\n\n2. PENYANGKALAN AI (DISCLAIMER)\nOutput AI mungkin mengandung halusinasi atau bias. Pengguna WAJIB memverifikasi ulang data.\n\n3. SISTEM POIN\nPoin yang terpakai tidak dapat dikembalikan (non-refundable).`)} className="w-full flex items-center gap-3 p-2 text-white/40 hover:text-white hover:bg-white/5 rounded-lg text-sm transition-colors"><Shield size={16}/> Syarat & Ketentuan</button>
-           
-           <button onClick={() => showLegal("Kebijakan Privasi", `KOMITMEN PRIVASI GUUG LABS\n\n1. DATA PENGGUNA\nKami menyimpan email & riwayat chat untuk kenyamanan Anda.\n\n2. KEAMANAN\nKami tidak menjual data Anda. Dokumen yang diunggah hanya diproses sementara.`)} className="w-full flex items-center gap-3 p-2 text-white/40 hover:text-white hover:bg-white/5 rounded-lg text-sm transition-colors"><FileText size={16}/> Kebijakan Privasi</button>
-           
+           <button onClick={() => showLegal("Syarat & Ketentuan", `TERAKHIR DIPERBARUI: JANUARI 2026\n\n1. PENGGUNAAN LAYANAN\nGuugie adalah alat bantu riset. Dilarang plagiarisme.\n\n2. DISCLAIMER AI\nOutput mungkin mengandung halusinasi.\n\n3. SISTEM POIN\nPoin non-refundable.`)} className="w-full flex items-center gap-3 p-2 text-white/40 hover:text-white hover:bg-white/5 rounded-lg text-sm transition-colors"><Shield size={16}/> Syarat & Ketentuan</button>
+           <button onClick={() => showLegal("Kebijakan Privasi", `KOMITMEN PRIVASI GUUG LABS\n\n1. DATA\nKami menyimpan riwayat chat untuk kenyamanan Anda.\n\n2. KEAMANAN\nData Anda tidak diperjualbelikan.`)} className="w-full flex items-center gap-3 p-2 text-white/40 hover:text-white hover:bg-white/5 rounded-lg text-sm transition-colors"><FileText size={16}/> Kebijakan Privasi</button>
            <button onClick={() => window.open('mailto:guuglabs@gmail.com')} className="w-full flex items-center gap-3 p-2 text-white/40 hover:text-white hover:bg-white/5 rounded-lg text-sm transition-colors"><MessageSquare size={16}/> Kritik & Saran</button>
-           
            <div className="flex items-center gap-3 pt-3 border-t border-white/[0.04] mt-3">
              <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center">{user?.user_metadata?.avatar_url ? <img src={user.user_metadata.avatar_url} className="w-full h-full rounded-full"/> : <User size={16}/>}</div>
              <div className="flex-1 min-w-0"><p className="text-xs font-bold text-white truncate">{user?.user_metadata?.name?.split(' ')[0]}</p><p className="text-[10px] text-yellow-500 font-bold">{Math.max(0, quota ?? 0)} PTS</p></div>
@@ -305,7 +303,7 @@ export default function GuugieFinalPage() {
           <div className="lg:hidden flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full border border-white/[0.05]"><Zap size={12} className="text-yellow-500 fill-yellow-500"/><span className="text-xs font-bold">{Math.max(0, quota ?? 0)}</span></div>
         </header>
 
-        {/* FIX KETUTUP: pb-48 DI SINI KUNCINYA */}
+        {/* CHAT AREA */}
         <div className="flex-1 overflow-y-auto p-4 lg:p-0 lg:w-[800px] lg:mx-auto w-full no-scrollbar pb-48">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-[60vh] text-center opacity-40">
