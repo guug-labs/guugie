@@ -45,15 +45,24 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex h-[100dvh] items-center justify-center bg-[#0a0a0a] text-[#ededed] font-sans selection:bg-white/10 overflow-hidden relative">
+    /* FIX: min-h-screen dan style global untuk memastikan full hitam di mobile */
+    <div className="flex min-h-screen items-center justify-center bg-[#0a0a0a] text-[#ededed] font-sans selection:bg-white/10 overflow-hidden relative">
+      <style jsx global>{`
+        html, body { 
+          background-color: #0a0a0a !important; 
+          margin: 0; 
+          padding: 0;
+          height: 100%;
+        }
+      `}</style>
       
       {/* AMBIENT GLOW */}
       <div className="absolute top-[-15%] left-[-10%] w-[50%] h-[50%] bg-emerald-500/10 blur-[150px] rounded-full opacity-50" />
       <div className="absolute bottom-[-15%] right-[-10%] w-[50%] h-[50%] bg-blue-500/10 blur-[150px] rounded-full opacity-50" />
 
-      <div className="w-full max-w-[400px] px-8 flex flex-col items-center animate-in fade-in zoom-in-95 duration-1000">
+      <div className="w-full max-w-[400px] px-8 flex flex-col items-center animate-in fade-in zoom-in-95 duration-1000 relative z-20">
         
-        {/* LOGO & BRANDING (Petir Dihapus) */}
+        {/* LOGO & BRANDING */}
         <div className="mb-14 flex flex-col items-center gap-8">
           <div className="relative group">
             {/* Outer Glow Effect */}
