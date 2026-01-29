@@ -215,8 +215,8 @@ export default function GuugieFinalPage() {
         <div className="min-w-[280px] flex flex-col h-full">
           <div className="p-6 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Zap size={18} className="text-white fill-white"/>
-              <span className="text-xl font-black text-white italic uppercase tracking-tighter">Guugie Labs</span>
+             <img src="/logo.png" className="w-8 h-8 object-contain" alt="Guugie Logo" />
+            <span className="text-xl font-black text-white italic uppercase tracking-tighter">Guugie Labs</span>
             </div>
             <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 text-white/40"><X size={20}/></button>
           </div>
