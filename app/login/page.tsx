@@ -45,7 +45,6 @@ export default function LoginPage() {
   }
 
   return (
-    /* FIX: min-h-screen dan style global untuk memastikan full hitam di mobile */
     <div className="flex min-h-screen items-center justify-center bg-[#0a0a0a] text-[#ededed] font-sans selection:bg-white/10 overflow-hidden relative">
       <style jsx global>{`
         html, body { 
@@ -56,17 +55,15 @@ export default function LoginPage() {
         }
       `}</style>
       
-      {/* AMBIENT GLOW */}
-      <div className="absolute top-[-15%] left-[-10%] w-[50%] h-[50%] bg-emerald-500/10 blur-[150px] rounded-full opacity-50" />
-      <div className="absolute bottom-[-15%] right-[-10%] w-[50%] h-[50%] bg-blue-500/10 blur-[150px] rounded-full opacity-50" />
+      {/* GLOW DIHAPUS BIAR FULL HITAM PEKAT */}
 
       <div className="w-full max-w-[400px] px-8 flex flex-col items-center animate-in fade-in zoom-in-95 duration-1000 relative z-20">
         
         {/* LOGO & BRANDING */}
         <div className="mb-14 flex flex-col items-center gap-8">
           <div className="relative group">
-            {/* Outer Glow Effect */}
-            <div className="absolute inset-0 bg-white/5 blur-2xl rounded-full group-hover:bg-white/10 transition-all duration-500" />
+            {/* Shadow minimalis saja tanpa glow berwarna */}
+            <div className="absolute inset-0 bg-white/5 blur-2xl rounded-full" />
             <div className="w-24 h-24 bg-[#111] rounded-[32px] border border-white/[0.08] flex items-center justify-center shadow-2xl relative z-10">
               <img src="/logo.png" alt="G" className="w-12 h-12 object-contain" />
             </div>
@@ -100,7 +97,7 @@ export default function LoginPage() {
           </button>
 
           <div className="mt-8 flex items-start gap-4 px-2 text-white/30">
-            <Globe2 size={18} className="shrink-0 mt-0.5 text-emerald-500/50" />
+            <Globe2 size={18} className="shrink-0 mt-0.5 text-white/20" />
             <p className="text-[9px] font-bold leading-relaxed uppercase tracking-[0.1em]">
               Buka potensi riset tak terbatas. Diproses secara aman melalui infrastruktur LPU™ generasi terbaru.
             </p>
@@ -108,7 +105,7 @@ export default function LoginPage() {
         </div>
 
         {/* SYNCED FOOTER */}
-        <div className="mt-20 flex flex-col items-center gap-6 opacity-30">
+        <div className="mt-20 flex flex-col items-center gap-6 opacity-20">
           <div className="flex items-center gap-6">
              <div className="h-px w-8 bg-white/10"></div>
              <span className="text-[8px] font-black text-white/40 uppercase tracking-[0.5em]">Guugie Security Access</span>

@@ -44,7 +44,6 @@ const GUUGIE_MODELS = {
   "PRO": { id: "groq-pro", label: "Guugie Riset", points: 10, sub: "Analisis File", loading: "Membedah..." }
 } as const;
 
-// --- REVISI 3: MODERN ROUNDED TABLE STYLING ---
 const MemoizedMarkdown = memo(({ content }: { content: string }) => {
   return (
     <div className="prose prose-invert max-w-none prose-p:leading-relaxed 
@@ -85,8 +84,6 @@ export default function GuugieFinalPage() {
   const [toast, setToast] = useState<{type: 'error' | 'success', msg: string} | null>(null);
   const [legalModal, setLegalModal] = useState<{title: string, content: string} | null>(null);
   const [isListening, setIsListening] = useState(false);
-
-  // --- REVISI 1: STATE UNTUK MODERN MODAL ---
   const [activeModal, setActiveModal] = useState<{type: 'rename' | 'delete', id: string, title?: string} | null>(null);
   const [modalInputValue, setModalInputValue] = useState("");
 
@@ -116,21 +113,14 @@ export default function GuugieFinalPage() {
   const handleRename = async () => {
     if (!activeModal?.id || !modalInputValue.trim()) return;
     const { error } = await supabase.from("chats").update({ title: modalInputValue }).eq("id", activeModal.id);
-    if (!error) {
-      await loadData(user.id);
-      showToast('success', 'Riset diperbarui');
-    }
+    if (!error) { await loadData(user.id); showToast('success', 'Riset diperbarui'); }
     setActiveModal(null);
   };
 
   const handleDelete = async () => {
     if (!activeModal?.id) return;
     const { error } = await supabase.from("chats").delete().eq("id", activeModal.id);
-    if (!error) {
-      if (currentChatId === activeModal.id) setCurrentChatId(null);
-      await loadData(user.id);
-      showToast('success', 'Riset dihapus');
-    }
+    if (!error) { if (currentChatId === activeModal.id) setCurrentChatId(null); await loadData(user.id); showToast('success', 'Riset dihapus'); }
     setActiveModal(null);
   };
 
@@ -138,9 +128,7 @@ export default function GuugieFinalPage() {
     const init = async () => {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) return router.push("/login");
-      setUser(authUser);
-      await loadData(authUser.id);
-      setIsLoadingSession(false);
+      setUser(authUser); await loadData(authUser.id); setIsLoadingSession(false);
     };
     init();
   }, [router, supabase, loadData]);
@@ -210,13 +198,13 @@ export default function GuugieFinalPage() {
         .no-scrollbar::-webkit-scrollbar { display: none; }
       `}</style>
 
-      {/* REVISI 2: FIX SIDEBAR BUG (OVERFLOW HIDDEN & MIN-WIDTH) */}
+      {/* FIX SIDEBAR: NO GHOSTING */}
       <aside className={`fixed lg:relative inset-y-0 left-0 z-[100] transition-all duration-300 ease-in-out flex flex-col bg-[#0a0a0a] border-r border-white/[0.04] overflow-hidden ${isSidebarOpen ? "w-[280px] translate-x-0" : "w-0 -translate-x-full lg:w-0"}`}>
         <div className="min-w-[280px] flex flex-col h-full">
           <div className="p-6 flex items-center justify-between">
             <div className="flex items-center gap-3">
-             <img src="/logo.png" className="w-8 h-8 object-contain" alt="Guugie Logo" />
-            <span className="text-xl font-black text-white italic uppercase tracking-tighter">Guugie Labs</span>
+              <img src="/logo.png" className="w-8 h-8 object-contain" alt="Guugie Logo" />
+              <span className="text-xl font-black text-white italic uppercase tracking-tighter">Guugie Labs</span>
             </div>
             <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 text-white/40"><X size={20}/></button>
           </div>
@@ -269,7 +257,11 @@ export default function GuugieFinalPage() {
                   <div key={i} className={`flex w-full ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[90%] lg:max-w-[85%] ${m.role === 'assistant' ? 'w-full' : 'bg-white/5 p-6 rounded-[28px] border border-white/5 shadow-2xl'}`}>
                       {m.role === 'assistant' && (
-                        <div className="flex items-center gap-2 mb-4 opacity-40"><Zap size={10} className="fill-yellow-500 text-yellow-500"/><span className="text-[9px] font-black uppercase tracking-widest text-white">Guugie AI Response</span></div>
+                        /* FIX: NO YELLOW LIGHTNING BOLT */
+                        <div className="flex items-center gap-2 mb-4 opacity-40">
+                          <img src="/logo.png" className="w-3 h-3 grayscale contrast-200" alt="Logo" />
+                          <span className="text-[9px] font-black uppercase tracking-widest text-white">Guugie AI Response</span>
+                        </div>
                       )}
                       <MemoizedMarkdown content={m.content} />
                     </div>
@@ -287,13 +279,34 @@ export default function GuugieFinalPage() {
             <div className="bg-[#111] border border-white/[0.08] rounded-[32px] p-2.5 shadow-2xl focus-within:border-white/20 transition-all relative">
               <textarea value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey && !isLoading) { e.preventDefault(); handleSendMessage(); } }} placeholder="Tanya riset ke Guugie..." className="w-full bg-transparent border-none focus:ring-0 text-[16px] text-white p-4 resize-none min-h-[56px] max-h-[160px] no-scrollbar" rows={1}/>
               <div className="flex items-center justify-between px-2 pb-2">
-                <div className="flex gap-1">
+                <div className="flex gap-1 items-center">
                   <button onClick={toggleMic} className={`p-3 rounded-2xl ${isListening ? 'bg-red-500 text-white shadow-lg animate-pulse' : 'text-white/20 hover:text-white'}`}><Mic size={20}/></button>
                   <button onClick={() => fileInputRef.current?.click()} className="p-3 text-white/20 hover:text-white"><Paperclip size={20}/></button>
+                  
+                  {/* FIX: BALIKIN MODE KE AREA INPUT */}
+                  <div className="flex ml-2 bg-white/[0.03] border border-white/[0.05] p-1 rounded-xl hidden md:flex">
+                    {(Object.keys(GUUGIE_MODELS) as Array<keyof typeof GUUGIE_MODELS>).map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => setSelectedKasta(m)}
+                        className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-tighter transition-all ${
+                          selectedKasta === m ? 'bg-white text-black' : 'text-white/20 hover:text-white'
+                        }`}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
                   <input type="file" ref={fileInputRef} className="hidden" multiple onChange={(e) => { showToast('success', 'File diproses...'); }} />
                 </div>
-                <button onClick={handleSendMessage} disabled={isLoading || !inputText.trim()} className="bg-white text-black w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-95 shadow-lg"><Send size={20} className="ml-1"/></button>
+                <button onClick={handleSendMessage} disabled={isLoading || !inputText.trim()} className="bg-white text-black w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-95 shadow-lg"><Send size={20} className="-rotate-12 translate-x-[2px] -translate-y-[1px]"/> </button>
               </div>
+            </div>
+            
+            {/* FIX: FOOTER CLEAN & GAK GANGGU */}
+            <div className="mt-6 flex flex-col items-center gap-2 opacity-20 pointer-events-none">
+              <p className="text-[8px] font-black text-white uppercase tracking-[0.4em]">GUUGIE PUBLIC BETA • POWERED BY GROQ LPU</p>
+              <p className="text-[7px] text-white/60 text-center uppercase tracking-widest max-w-[280px]">SELALU VERIFIKASI DATA PENTING ANDA MELALUI SUMBER ASLI.</p>
             </div>
           </div>
         </div>
@@ -303,9 +316,7 @@ export default function GuugieFinalPage() {
       {activeModal && (
         <div className="fixed inset-0 z-[1000] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
           <div className="bg-[#121212] border border-white/10 rounded-[32px] max-w-sm w-full p-8 shadow-2xl">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-white mb-6">
-              {activeModal.type === 'rename' ? 'Ubah Nama Riset' : 'Hapus Riset?'}
-            </h3>
+            <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-white mb-6">{activeModal.type === 'rename' ? 'Ubah Nama Riset' : 'Hapus Riset?'}</h3>
             {activeModal.type === 'rename' ? (
               <input value={modalInputValue} onChange={e => setModalInputValue(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white text-sm focus:ring-1 focus:ring-white/20 outline-none mb-6" autoFocus />
             ) : (
@@ -321,7 +332,7 @@ export default function GuugieFinalPage() {
         </div>
       )}
 
-      {/* LEGAL MODAL */}
+      {/* LEGAL & TOAST */}
       {legalModal && (
         <div className="fixed inset-0 z-[1000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setLegalModal(null)}>
           <div className="bg-[#161616] border border-white/10 rounded-[32px] max-w-md w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
@@ -331,8 +342,6 @@ export default function GuugieFinalPage() {
           </div>
         </div>
       )}
-
-      {/* MODERN TOAST */}
       {toast && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[1000] px-6 py-3 rounded-full bg-white text-black text-[10px] font-black uppercase tracking-[0.2em] shadow-2xl animate-in slide-in-from-top-4">
           {toast.msg}
