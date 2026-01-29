@@ -39,9 +39,9 @@ interface ChatHistory { id: string; title: string; created_at: string; user_id: 
 interface PendingFile { file: File; extractedText: string; fileType: string; }
 
 const GUUGIE_MODELS = {
-  "QUICK": { id: "groq-fast", label: "Guugie Cepat", points: 0, sub: "Respon Kilat", loading: "Mencari..." },
-  "REASON": { id: "groq-reason", label: "Guugie Nalar", points: 5, sub: "Logika Deep", loading: "Bernalar..." },
-  "PRO": { id: "groq-pro", label: "Guugie Riset", points: 10, sub: "Analisis File", loading: "Membedah..." }
+  "KILAT": { id: "groq-fast", label: "Guugie Cepat", points: 0, sub: "Respon Kilat", loading: "Mencari..." },
+  "NALAR": { id: "groq-reason", label: "Guugie Nalar", points: 5, sub: "Logika Deep", loading: "Bernalar..." },
+  "RISET": { id: "groq-pro", label: "Guugie Riset", points: 10, sub: "Analisis File", loading: "Membedah..." }
 } as const;
 
 const MemoizedMarkdown = memo(({ content }: { content: string }) => {
@@ -76,7 +76,7 @@ export default function GuugieFinalPage() {
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
-  const [selectedKasta, setSelectedKasta] = useState<keyof typeof GUUGIE_MODELS>("QUICK");
+  const [selectedKasta, setSelectedKasta] = useState<keyof typeof GUUGIE_MODELS>("KILAT");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true); 
   const [user, setUser] = useState<any>(null);
   const [quota, setQuota] = useState<number | null>(null);
@@ -284,7 +284,7 @@ export default function GuugieFinalPage() {
                   <button onClick={() => fileInputRef.current?.click()} className="p-3 text-white/20 hover:text-white"><Paperclip size={20}/></button>
                   
                   {/* FIX: BALIKIN MODE KE AREA INPUT */}
-                  <div className="flex ml-2 bg-white/[0.03] border border-white/[0.05] p-1 rounded-xl hidden md:flex">
+                  <div className="flex ml-2 bg-white/[0.03] border border-white/[0.05] p-1 rounded-xl">
                     {(Object.keys(GUUGIE_MODELS) as Array<keyof typeof GUUGIE_MODELS>).map((m) => (
                       <button
                         key={m}
