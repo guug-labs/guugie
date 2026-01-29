@@ -21,7 +21,7 @@
     "lodash": "^4.17.23",
     "lucide-react": "^0.563.0",
     "mammoth": "^1.11.0",
-    "next": "16.1.5",
+    "next": "15.5.2",
     "pdfjs-dist": "^5.4.530",
     "picomatch": "^4.0.3",
     "react": "19.2.3",
