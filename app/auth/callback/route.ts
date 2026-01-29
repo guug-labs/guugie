@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
-// 1. Wajib buat Cloudflare biar ngebut
+// 1. WAJIB: Biar proses login secepat kilat di Cloudflare (Edge Runtime)
 export const runtime = 'edge';
 
 export async function GET(request: Request) {
@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   const next = searchParams.get('next') ?? '/'; 
 
   if (code) {
-    // 2. Wajib pake 'await' di Next.js terbaru
+    // 2. NEXT.JS 15 COMPLIANT: Cookies sekarang asinkron
     const cookieStore = await cookies();
     
     const supabase = createServerClient(
@@ -19,7 +19,7 @@ export async function GET(request: Request) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
-          // 3. Cara baru handle cookies di Supabase SSR
+          // 3. SSR COOKIE MANAGEMENT: Handle sesi user secara aman
           getAll() { return cookieStore.getAll(); },
           setAll(cookiesToSet) {
             try {
@@ -27,19 +27,22 @@ export async function GET(request: Request) {
                 cookieStore.set(name, value, options)
               );
             } catch (error) {
-              // Aman, abaikan error di server component
+              // Server component aman, abaikan error redirect
             }
           },
         },
       }
     );
     
+    // 4. TUKAR KODE: Mengubah kode Google menjadi Sesi Supabase
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     
     if (!error) {
+      // Login Sukses -> Lempar ke Dashboard
       return NextResponse.redirect(`${origin}${next}`);
     }
   }
 
+  // 5. FAIL-SAFE: Jika gagal, balikkan ke login dengan error
   return NextResponse.redirect(`${origin}/login?error=auth_failed`);
 }

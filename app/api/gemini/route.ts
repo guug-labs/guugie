@@ -1,56 +1,72 @@
 import { NextResponse } from "next/server";
 import Groq from "groq-sdk";
 
-// Inisialisasi Groq
+// Inisialisasi Groq dengan API Key dari Environment
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// WAJIB: Biar jalan ngebut di Cloudflare (Edge Runtime)
+// MENGGUNAKAN EDGE RUNTIME: Biar respons secepat kilat di Cloudflare/Vercel
 export const runtime = 'edge';
 
 export async function POST(req: Request) {
   try {
-    // 1. Terima Data dari Frontend
-    const { message, fileContent, modelId } = await req.json();
+    const { message, extractedText, modelId } = await req.json();
 
-    // 2. Mapping Model ID (Frontend -> Groq)
-    // Default: Pake Llama 3.3 (Si Pinter) buat REASON & PRO
-    let targetModel = "llama-3.3-70b-versatile"; 
-    
-    // Kalau user pilih mode FAST, kasih yang Instant (Ngebut)
-    if (modelId === "groq-fast") {
-      targetModel = "llama-3.1-8b-instant"; 
-    }
-    
-    // 3. System Prompt (Otak Guugie - VERSI SUPER RISET)
-    // Ini instruksi rahasia biar dia pinter bedah jurnal & formatnya rapi
-    const systemPrompt = `Anda adalah Guugie (dikembangkan oleh GUUG LABS), asisten riset akademik kelas dunia.
-    
-    PROTOKOL JAWABAN:
-    1. **Gaya Bahasa:** Profesional, objektif, dan padat (Concise). Hindari basa-basi berlebihan.
-    2. **Format Visual:** WAJIB gunakan Markdown. Gunakan **Bold** untuk poin penting, dan Tabel untuk perbandingan data.
-    3. **Analisis Dokumen:** Jika ada file, jangan hanya merangkum. Ekstrak: Metodologi, Temuan Utama, dan Keterbatasan (Limitations).
-    4. **Sistem Kutipan:** Jika mengambil info dari dokumen user, sebutkan referensinya (contoh: "Berdasarkan Tabel 1 di dokumen...").
-    5. **Matematika:** Jika ada rumus, tuliskan dalam format LaTeX block ($$...$$) agar rapi.
-    6. **Mobile Friendly:** Pecah paragraf panjang menjadi maksimal 3-4 kalimat per paragraf agar nyaman dibaca di layar HP.`;
+    // 1. Mapping Otak AI (Disesuaikan dengan ketersediaan Groq 2026)
+    const modelMapping: Record<string, string> = {
+      "groq-fast": "llama-3.1-8b-instant",
+      "groq-reason": "llama-3.3-70b-versatile",
+      "groq-pro": "llama-3.3-70b-versatile"
+    };
 
-    // 4. Tembak API Groq
+    // 2. Proyeksi Kepribadian AI (System Prompt)
+    const systemPrompt = `
+ANDA ADALAH GUUGIE (DIKEMBANGKAN OLEH GUUG LABS), ASISTEN RISET AKADEMIK ELIT.
+
+PROTOKOL ANALISIS DATA:
+1. **Prioritas Dokumen:** Jika ada teks di bawah label [KONTEKS DOKUMEN], anggap teks tersebut sebagai "Single Source of Truth". Jangan berimprovisasi di luar data tersebut jika pertanyaan terkait dokumen.
+2. **Bedah Akademik:** Fokus pada: Metodologi, Temuan Utama, Data Statistik, dan Keterbatasan (Limitations).
+3. **Sistem Referensi:** Selalu sebutkan bagian dokumen yang dirujuk (Contoh: "Berdasarkan data pada bagian Kesimpulan...").
+
+PROTOKOL VISUAL & TEKNIS:
+1. **Markdown Elit:** Gunakan **bold** untuk terminologi penting. Gunakan tabel jika membandingkan dua data atau lebih.
+2. **LaTeX System:** Untuk rumus matematika/fisika/statistik, WAJIB menggunakan format LaTeX block: $$[rumus]$$.
+3. **Mobile Friendly:** Gunakan paragraf pendek (maksimal 3-4 kalimat) agar enak dibaca di HP.
+
+KEPRIBADIAN:
+- Profesional, dingin, tajam, tapi asik (Vibe: Academic Noir).
+- Panggil user dengan sebutan "Bang" atau "Bro" agar diskusi terasa cair.
+- Jika data tidak ada dalam konteks, bilang: "Gudang data gue lagi kosong soal itu, Bang. Coba kasih gue input lebih detail."
+`;
+
+    // 3. Eksekusi Request ke Infrastruktur LPU Groq
     const completion = await groq.chat.completions.create({
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: fileContent ? `[DOKUMEN USER]\n${fileContent}\n\n[PERTANYAAN]\n${message}` : message }
+        { 
+          role: "user", 
+          content: extractedText 
+            ? `[KONTEKS DOKUMEN]\n${extractedText}\n\n[PERTANYAAN]\n${message}` 
+            : message 
+        }
       ],
-      model: targetModel,
-      temperature: 0.6, // Balance antara kreatif & faktual
-      max_tokens: 4096,
+      model: modelMapping[modelId] || "llama-3.3-70b-versatile",
+      // Temperature Rendah = Lebih Akurat, Temperature Tinggi = Lebih Kreatif
+      temperature: modelId === "groq-reason" ? 0.3 : 0.1, 
+      max_tokens: 4096, // Kapasitas cukup besar untuk bedah jurnal
     });
 
-    const content = completion.choices[0]?.message?.content || "";
-
-    // 5. Balikin Jawaban ke Frontend
-    return NextResponse.json({ content });
+    // 4. Kirim hasil balik ke UI
+    return NextResponse.json({ 
+      content: completion.choices[0]?.message?.content 
+    });
 
   } catch (error: any) {
-    console.error("Groq Backend Error:", error);
-    return NextResponse.json({ error: "Maaf, server AI sedang sibuk. Coba lagi." }, { status: 500 });
+    // Logging error ke konsol server biar gampang debug
+    console.error("GROQ_API_ERROR:", error);
+    
+    return NextResponse.json(
+      { error: "Groq lagi pusing, Bang. Coba cek API Key atau limit token lu." }, 
+      { status: 500 }
+    );
   }
 }

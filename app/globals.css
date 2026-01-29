@@ -2,7 +2,8 @@
 @plugin "@tailwindcss/typography";
 
 :root {
-  --background: #0B101A;
+  /* Midnight Navy Noir - Lebih dalem & Pro */
+  --background: #0B101A; 
   --foreground: #ededed;
 }
 
@@ -16,18 +17,46 @@ body {
   color: var(--foreground);
   font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
   margin: 0;
-  height: 100vh; /* Tambahan: Kunci tinggi body */
-  overflow: hidden; /* Tambahan: Cegah scroll body ganda */
+  /* PAKAI dvh (Dynamic Viewport Height) biar gak kepotong bar browser di HP */
+  height: 100dvh; 
+  overflow: hidden; 
+  /* Biar scroll chat-nya kenyal di iOS */
+  -webkit-overflow-scrolling: touch;
 }
 
-/* Custom scrollbar biar makin estetik */
-::-webkit-scrollbar {
-  width: 5px;
+/* --- THE LUXURY TOUCH --- */
+
+/* 1. Custom Selection (Warna blok teks elit khas Guugie Labs) */
+::selection {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
 }
+
+/* 2. Sembunyiin scrollbar default browser tapi tetep fungsional */
+::-webkit-scrollbar {
+  width: 4px; /* Lebih tipis makin elit */
+}
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05); /* Sangat tipis & subtle */
   border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* 3. Buang efek abu-abu (tap highlight) pas klik tombol di Android/iPhone */
+* {
+  -webkit-tap-highlight-color: transparent;
+  outline: none !important;
+}
+
+/* 4. Support buat Markdown Typography lu */
+.markdown-body {
+  @apply prose prose-invert max-w-none;
 }
