@@ -6,23 +6,20 @@ import { useRouter } from "next/navigation";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
-import { debounce } from 'lodash'; // RESTORED: Sesuai arahan awal
+import { debounce } from 'lodash'; 
 import { 
   Plus, Send, Paperclip, User, X, Loader2, Trash2,
   PanelLeft, Zap, ChevronDown, LogOut, MessageSquare, 
-  FileUp, Copy, Mic, MicOff, CheckCircle2
+  FileUp, Copy, Mic, MicOff, CheckCircle2, Edit3
 } from "lucide-react";
 
-// --- HELPER BEDAH FILE (FIXED FOR v5.4.530 + EDGE COMPATIBLE) ---
+// --- HELPER BEDAH FILE ---
 const extractTextFromPDF = async (file: File): Promise<string> => {
   const pdfjs = await import('pdfjs-dist');
-  // SINKRONISASI: Menggunakan worker .mjs sesuai versi package.json lu (v5)
   pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-  
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
   let fullText = '';
-  
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const textContent = await page.getTextContent();
@@ -86,9 +83,8 @@ export default function GuugieFinalPage() {
   const [toast, setToast] = useState<{type: 'error' | 'success', msg: string} | null>(null);
   const [legalModal, setLegalModal] = useState<{title: string, content: string} | null>(null);
   const [isListening, setIsListening] = useState(false);
-  const [lastMessageTime, setLastMessageTime] = useState(0); // FITUR ANTI-SPAM LU
+  const [lastMessageTime, setLastMessageTime] = useState(0);
 
-  // --- UTILS ---
   const showToast = (type: 'error' | 'success', msg: string) => {
     setToast({ type, msg });
     setTimeout(() => setToast(null), 3000);
@@ -101,12 +97,22 @@ export default function GuugieFinalPage() {
     } catch { showToast('error', 'Gagal menyalin'); }
   };
 
-  const showLegal = (title: string, content: string) => {
+  const showLegal = (title: string, type: 'tos' | 'privacy') => {
+    const content = type === 'tos' 
+      ? "Guugie adalah platform riset berbasis AI. Pengguna bertanggung jawab penuh atas validasi data. Dilarang menggunakan platform untuk aktivitas ilegal atau penyebaran misinformasi."
+      : "Kami menghormati privasi Anda. Data dokumen diproses secara real-time melalui Groq LPU dan tidak digunakan untuk melatih model AI. Riwayat percakapan disimpan dengan enkripsi di Supabase.";
     setLegalModal({ title, content });
     setIsSidebarOpen(false);
   };
 
-  // --- AUTO HEIGHT TEXTAREA ---
+  const handleRenameChat = async (id: string, oldTitle: string) => {
+    const newTitle = prompt("Ubah nama riset:", oldTitle);
+    if (newTitle && newTitle !== oldTitle) {
+      const { error } = await supabase.from("chats").update({ title: newTitle }).eq("id", id);
+      if (!error) { showToast('success', 'Nama diperbarui'); loadData(user.id); }
+    }
+  };
+
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -114,7 +120,6 @@ export default function GuugieFinalPage() {
     }
   }, [inputText]);
 
-  // --- DATA LOADING ---
   const loadData = useCallback(async (uid: string) => {
     const { data: prof } = await supabase.from("profiles").select("quota, last_reset").eq("id", uid).single();
     const todayStr = new Date().toDateString();
@@ -152,11 +157,9 @@ export default function GuugieFinalPage() {
     loadMsg();
   }, [currentChatId, supabase]);
 
-  // --- HANDLERS ---
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
-
     showToast('success', 'Sedang membedah dokumen...');
     const processed = await Promise.all(files.map(async (file) => {
       if (file.size > 15 * 1024 * 1024) { showToast('error', `${file.name} kegedean!`); return null; }
@@ -166,12 +169,8 @@ export default function GuugieFinalPage() {
         else if (file.type.includes('word') || file.type.includes('document')) text = await extractTextFromDOCX(file);
         else if (file.type === 'text/plain') text = await file.text();
         return { file, extractedText: text, fileType: file.type };
-      } catch (err) {
-        showToast('error', `Gagal bedah ${file.name}`);
-        return null;
-      }
+      } catch (err) { showToast('error', `Gagal bedah ${file.name}`); return null; }
     }));
-
     const validFiles = processed.filter((f): f is PendingFile => f !== null);
     setPendingFiles(prev => [...prev, ...validFiles]);
     setSelectedKasta("PRO");
@@ -180,40 +179,29 @@ export default function GuugieFinalPage() {
 
   const handleSendMessage = async () => {
     const now = Date.now();
-    // FITUR ANTI-SPAM LU: Delay 1 detik antar pesan
     if (now - lastMessageTime < 1000) return showToast('error', 'Sabar, satu-satu Bang...');
-    
     const model = GUUGIE_MODELS[selectedKasta];
     if ((quota ?? 0) < model.points) return showToast('error', 'Poin kurang!');
     if (!inputText.trim() && pendingFiles.length === 0) return;
-
     setLastMessageTime(now);
     setIsLoading(true);
     const msg = inputText;
     const combinedText = pendingFiles.map(f => f.extractedText).join("\n\n---\n\n");
     setInputText("");
     let cid = currentChatId;
-
     try {
       if (!cid) {
         const { data } = await supabase.from("chats").insert([{ user_id: user.id, title: msg.slice(0, 40) || "Riset Akademik" }]).select().single();
         if (data) { cid = data.id; setCurrentChatId(cid); setHistory(prev => [data, ...prev] as ChatHistory[]); }
       }
-
       if (cid) {
         setMessages(prev => [...prev, { role: "user", content: msg || "Bedah dokumen ini." }]);
         await supabase.from("messages").insert([{ chat_id: cid, role: "user", content: msg || "Bedah dokumen ini." }]);
-
         const res = await fetch("/api/gemini", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            message: msg, 
-            extractedText: combinedText || null, 
-            modelId: model.id
-          })
+          body: JSON.stringify({ message: msg, extractedText: combinedText || null, modelId: model.id })
         });
-
         const data = await res.json();
         if (data.content) {
           setMessages(prev => [...prev, { role: "assistant", content: data.content }]);
@@ -234,9 +222,12 @@ export default function GuugieFinalPage() {
     if (isListening) { recognitionRef.current?.stop(); setIsListening(false); return; }
     const rec = new SpeechRecognition();
     rec.lang = 'id-ID';
+    rec.continuous = false;
+    rec.interimResults = false;
     rec.onstart = () => setIsListening(true);
-    rec.onresult = (e: any) => setInputText(prev => prev + " " + e.results[0][0].transcript);
+    rec.onresult = (e: any) => setInputText(prev => (prev + " " + e.results[0][0].transcript).trim());
     rec.onend = () => setIsListening(false);
+    rec.onerror = () => { setIsListening(false); showToast('error', 'Mic error'); };
     rec.start();
     recognitionRef.current = rec;
   };
@@ -248,6 +239,9 @@ export default function GuugieFinalPage() {
       <style jsx global>{`
         * { -webkit-tap-highlight-color: transparent !important; outline: none !important; }
         .markdown-body { width: 100%; font-size: 16px; line-height: 1.8; color: #d1d1d1; }
+        .markdown-body p { margin-bottom: 1.5rem; }
+        .markdown-body ul, .markdown-body ol { margin-bottom: 1.5rem; padding-left: 1.5rem; }
+        .markdown-body li { margin-bottom: 0.6rem; list-style-type: disc; }
         .markdown-body table { display: block; width: 100%; overflow-x: auto; border-collapse: collapse; margin: 2rem 0; background: #111; border-radius: 12px; border: 1px solid #333; }
         .markdown-body th { background: #222; padding: 14px 18px; text-align: left; color: white; border-bottom: 2px solid #333; }
         .markdown-body td { padding: 14px 18px; border-top: 1px solid #222; color: #aaa; vertical-align: top; }
@@ -276,14 +270,17 @@ export default function GuugieFinalPage() {
                 <MessageSquare size={14}/>
                 <span className="text-sm truncate">{chat.title || "Percakapan"}</span>
               </div>
-              <button onClick={(e) => { e.stopPropagation(); if(confirm("Hapus riset ini?")) supabase.from("chats").delete().eq("id",chat.id).then(()=>loadData(user.id)) }} className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 transition-opacity"><Trash2 size={13}/></button>
+              <div className="flex items-center gap-1">
+                <button onClick={(e) => { e.stopPropagation(); handleRenameChat(chat.id, chat.title); }} className="opacity-0 lg:group-hover:opacity-100 p-1 hover:text-white transition-opacity"><Edit3 size={13}/></button>
+                <button onClick={(e) => { e.stopPropagation(); if(confirm("Hapus riset ini?")) supabase.from("chats").delete().eq("id",chat.id).then(()=>loadData(user.id)) }} className="opacity-0 lg:group-hover:opacity-100 p-1 hover:text-red-400 transition-opacity"><Trash2 size={13}/></button>
+              </div>
             </div>
           ))}
         </div>
         <div className="p-4 border-t border-white/[0.04] space-y-3 bg-[#0a0a0a]">
           <div className="grid grid-cols-2 gap-2 text-[10px] font-bold text-white/30 tracking-widest uppercase">
-            <button onClick={() => showLegal("ToS", "Penggunaan untuk riset akademik saja.")} className="p-2 bg-white/5 rounded-lg text-center hover:bg-white/10">ToS</button>
-            <button onClick={() => showLegal("Privasi", "Data anda aman dan terenkripsi.")} className="p-2 bg-white/5 rounded-lg text-center hover:bg-white/10">Privasi</button>
+            <button onClick={() => showLegal("Ketentuan Layanan", "tos")} className="p-2 bg-white/5 rounded-lg text-center hover:bg-white/10">ToS</button>
+            <button onClick={() => showLegal("Kebijakan Privasi", "privacy")} className="p-2 bg-white/5 rounded-lg text-center hover:bg-white/10">Privasi</button>
           </div>
           <div className="flex items-center gap-3 p-3 bg-white/[0.02] border border-white/[0.04] rounded-2xl shadow-sm">
             <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center"><User size={18} className="text-white/40"/></div>
@@ -291,7 +288,7 @@ export default function GuugieFinalPage() {
               <p className="text-xs font-bold text-white truncate">{user?.user_metadata?.name || 'Researcher'}</p>
               <p className="text-[10px] text-yellow-500 font-black tracking-tighter uppercase">{quota ?? 0} PTS AVAILABLE</p>
             </div>
-            <button onClick={() => supabase.auth.signOut()} className="p-2 text-white/20 hover:text-red-400 transition-colors"><LogOut size={16}/></button>
+            <button onClick={async (e) => { e.preventDefault(); await supabase.auth.signOut(); router.push("/login"); }} className="p-2 text-white/20 hover:text-red-400 transition-colors z-50 pointer-events-auto"><LogOut size={16}/></button>
           </div>
         </div>
       </aside>
@@ -301,7 +298,7 @@ export default function GuugieFinalPage() {
         <header className="h-16 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-40 bg-[#0a0a0a]/80 backdrop-blur-2xl border-b border-white/[0.04]">
           <div className="flex items-center gap-4">
             <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-white/60 hover:text-white transition-colors"><PanelLeft size={20}/></button>
-            <h1 className="text-xs font-black text-white/90 uppercase tracking-widest truncate max-w-[150px]">{currentChatId ? (history.find(h => h.id === currentChatId)?.title || "Riset") : "Environment Baru"}</h1>
+            <h1 className="text-xs font-black text-white/90 uppercase tracking-widest truncate max-w-[150px]">{currentChatId ? (history.find(h => h.id === currentChatId)?.title || "Riset") : "Riset Baru"}</h1>
           </div>
           <div className="lg:hidden flex items-center gap-1.5 bg-white/5 px-3 py-1 rounded-full border border-white/[0.05]">
             <Zap size={10} className="text-yellow-500 fill-yellow-500"/><span className="text-[10px] font-black text-white">{Math.max(0, quota ?? 0)}</span>
@@ -313,7 +310,10 @@ export default function GuugieFinalPage() {
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-[55vh] text-center animate-in fade-in duration-700">
                 <h2 className="text-2xl font-black text-white mb-3 tracking-tight">Halo, {user?.user_metadata?.name?.split(' ')[0]}</h2>
-                <p className="text-sm text-white/30 max-w-[280px] leading-relaxed">Upload jurnal atau dokumen riset lu buat mulai analisis mendalam.</p>
+                <div className="space-y-1">
+                   <p className="text-sm text-white/30 max-w-[280px] leading-relaxed">Guugie didesain khusus untuk <b>Deep Research</b>.</p>
+                   <p className="text-[10px] text-white/10 uppercase tracking-widest">Upload jurnal atau dokumen untuk mulai bedah riset.</p>
+                </div>
               </div>
             ) : (
               <div className="space-y-12">
@@ -322,7 +322,7 @@ export default function GuugieFinalPage() {
                     <div className={`relative group max-w-[90%] lg:max-w-[85%] rounded-[32px] p-6 lg:p-7 ${m.role === 'user' ? 'bg-[#1a1a1a] text-white rounded-tr-none border border-white/[0.06] shadow-xl' : 'bg-transparent text-[#e5e5e5] px-0'}`}>
                       {m.role === 'assistant' && (
                         <div className="flex justify-between items-center mb-4">
-                          <div className="flex items-center gap-2"><Zap size={12} className="text-yellow-500 fill-yellow-500"/><span className="text-[10px] font-black text-white uppercase tracking-widest">Guugie Labs AI</span></div>
+                          <div className="flex items-center gap-2"><Zap size={12} className="text-yellow-500 fill-yellow-500"/><span className="text-[10px] font-black text-white uppercase tracking-widest">Guugie AI Response</span></div>
                           <button onClick={() => copyToClipboard(m.content)} className="opacity-0 group-hover:opacity-100 transition-opacity p-2 bg-white/5 rounded-lg hover:bg-white/10"><Copy size={14} className="text-white/40" /></button>
                         </div>
                       )}
@@ -383,7 +383,12 @@ export default function GuugieFinalPage() {
                 </button>
               </div>
             </div>
-            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-center text-white/10 mt-5 opacity-40 italic">Experimental Lab • Guugie v3.9</p>
+            
+            {/* FOOTER DISCLAIMER */}
+            <div className="mt-6 flex flex-col items-center gap-2 opacity-30">
+              <p className="text-[8px] md:text-[9px] font-black uppercase tracking-[0.2em] text-center text-white italic">Guugie Public Beta • Powered by Groq LPU</p>
+              <p className="max-w-[280px] md:max-w-none text-[7px] text-center text-white/60 uppercase tracking-widest leading-relaxed">Peringatan: Guugie AI dapat memberikan jawaban tidak akurat. Selalu verifikasi data penting Anda melalui sumber asli.</p>
+            </div>
           </div>
         </div>
       </main>
@@ -392,7 +397,7 @@ export default function GuugieFinalPage() {
       {legalModal && (
         <div className="fixed inset-0 z-[1000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300" onClick={() => setLegalModal(null)}>
           <div className="bg-[#161616] border border-white/10 rounded-3xl max-w-md w-full p-8 text-sm shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-6 font-bold text-white uppercase tracking-widest text-xs"><span>LEGAL COMPLIANCE: {legalModal.title}</span><button onClick={() => setLegalModal(null)} className="hover:text-red-400 transition-colors"><X size={20}/></button></div>
+            <div className="flex justify-between items-center mb-6 font-bold text-white uppercase tracking-widest text-xs"><span>{legalModal.title}</span><button onClick={() => setLegalModal(null)} className="hover:text-red-400 transition-colors"><X size={20}/></button></div>
             <p className="text-white/60 whitespace-pre-wrap leading-relaxed italic">{legalModal.content}</p>
           </div>
         </div>
