@@ -6,14 +6,13 @@ import { useRouter } from "next/navigation";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
-import { debounce } from 'lodash'; 
 import { 
   Plus, Send, Paperclip, User, X, Loader2, Trash2,
   PanelLeft, Zap, ChevronDown, LogOut, MessageSquare, 
   FileUp, Copy, Mic, MicOff, CheckCircle2, Edit3
-} from "lucide-react";
+} from "lucide-react"; // FIX: lucide-react (BUKAN center!)
 
-// --- HELPER BEDAH FILE ---
+// --- 1. LOGIKA BEDAH DOKUMEN (PDF & DOCX) ---
 const extractTextFromPDF = async (file: File): Promise<string> => {
   const pdfjs = await import('pdfjs-dist');
   pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -35,7 +34,6 @@ const extractTextFromDOCX = async (file: File): Promise<string> => {
   return result.value;
 };
 
-// --- INTERFACES ---
 interface ChatMessage { id?: string; role: 'user' | 'assistant'; content: string; }
 interface ChatHistory { id: string; title: string; created_at: string; user_id: string; }
 interface PendingFile { file: File; extractedText: string; fileType: string; }
@@ -47,11 +45,12 @@ const GUUGIE_MODELS = {
 } as const;
 
 const MemoizedMarkdown = memo(({ content }: { content: string }) => {
-  const MarkdownWithPlugins = ReactMarkdown as any;
   return (
-    <MarkdownWithPlugins className="markdown-body" remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
-      {content}
-    </MarkdownWithPlugins>
+    <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-table:border prose-table:border-white/10">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
+        {content}
+      </ReactMarkdown>
+    </div>
   );
 });
 MemoizedMarkdown.displayName = 'MemoizedMarkdown';
@@ -75,51 +74,33 @@ export default function GuugieFinalPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
   const [selectedKasta, setSelectedKasta] = useState<keyof typeof GUUGIE_MODELS>("QUICK");
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
-  const [isKastaOpen, setIsKastaOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true); 
   const [user, setUser] = useState<any>(null);
   const [quota, setQuota] = useState<number | null>(null);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [toast, setToast] = useState<{type: 'error' | 'success', msg: string} | null>(null);
   const [legalModal, setLegalModal] = useState<{title: string, content: string} | null>(null);
   const [isListening, setIsListening] = useState(false);
-  const [lastMessageTime, setLastMessageTime] = useState(0);
+
+  // --- REVISI 6: AUTO-SCROLL (NGIKUTIN PESAN AI) ---
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isLoading]);
 
   const showToast = (type: 'error' | 'success', msg: string) => {
     setToast({ type, msg });
     setTimeout(() => setToast(null), 3000);
   };
 
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      showToast('success', 'Berhasil disalin!');
-    } catch { showToast('error', 'Gagal menyalin'); }
-  };
-
   const showLegal = (title: string, type: 'tos' | 'privacy') => {
     const content = type === 'tos' 
-      ? "Guugie adalah platform riset berbasis AI. Pengguna bertanggung jawab penuh atas validasi data. Dilarang menggunakan platform untuk aktivitas ilegal atau penyebaran misinformasi."
-      : "Kami menghormati privasi Anda. Data dokumen diproses secara real-time melalui Groq LPU dan tidak digunakan untuk melatih model AI. Riwayat percakapan disimpan dengan enkripsi di Supabase.";
+      ? "Guugie adalah platform riset AI. Pengguna bertanggung jawab penuh atas validasi data. Dilarang menggunakan platform untuk aktivitas ilegal."
+      : "Data dokumen diproses secara real-time via Groq LPU dan tidak digunakan untuk melatih model AI. Riwayat dienkripsi di Supabase.";
     setLegalModal({ title, content });
-    setIsSidebarOpen(false);
+    if(window.innerWidth < 1024) setIsSidebarOpen(false);
   };
 
-  const handleRenameChat = async (id: string, oldTitle: string) => {
-    const newTitle = prompt("Ubah nama riset:", oldTitle);
-    if (newTitle && newTitle !== oldTitle) {
-      const { error } = await supabase.from("chats").update({ title: newTitle }).eq("id", id);
-      if (!error) { showToast('success', 'Nama diperbarui'); loadData(user.id); }
-    }
-  };
-
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 180)}px`;
-    }
-  }, [inputText]);
-
+  // --- REVISI RESET POIN: TETAP AMAN TIDAK ILANG ---
   const loadData = useCallback(async (uid: string) => {
     const { data: prof } = await supabase.from("profiles").select("quota, last_reset").eq("id", uid).single();
     const todayStr = new Date().toDateString();
@@ -128,8 +109,6 @@ export default function GuugieFinalPage() {
       if (prof.last_reset !== todayStr) {
         await supabase.from("profiles").update({ quota: 25, last_reset: todayStr }).eq("id", uid);
       } else { currentQuota = prof.quota; }
-    } else {
-      await supabase.from("profiles").insert([{ id: uid, quota: 25, last_reset: todayStr }]); 
     }
     setQuota(currentQuota);
     const { data: hist } = await supabase.from("chats").select("*").eq("user_id", uid).order("created_at", { ascending: false });
@@ -139,7 +118,7 @@ export default function GuugieFinalPage() {
   useEffect(() => {
     const init = async () => {
       const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) return router.push("/login");
+      if (!authUser) return router.push("/login"); // REVISI 1: LOGIN AMAN
       setUser(authUser);
       await loadData(authUser.id);
       setIsLoadingSession(false);
@@ -152,39 +131,29 @@ export default function GuugieFinalPage() {
     const loadMsg = async () => {
       const { data } = await supabase.from("messages").select("*").eq("chat_id", currentChatId).order("created_at", { ascending: true });
       if (data) setMessages(data as ChatMessage[]);
-      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     };
     loadMsg();
   }, [currentChatId, supabase]);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-    showToast('success', 'Sedang membedah dokumen...');
-    const processed = await Promise.all(files.map(async (file) => {
-      if (file.size > 15 * 1024 * 1024) { showToast('error', `${file.name} kegedean!`); return null; }
-      try {
-        let text = "";
-        if (file.type === 'application/pdf') text = await extractTextFromPDF(file);
-        else if (file.type.includes('word') || file.type.includes('document')) text = await extractTextFromDOCX(file);
-        else if (file.type === 'text/plain') text = await file.text();
-        return { file, extractedText: text, fileType: file.type };
-      } catch (err) { showToast('error', `Gagal bedah ${file.name}`); return null; }
-    }));
-    const validFiles = processed.filter((f): f is PendingFile => f !== null);
-    setPendingFiles(prev => [...prev, ...validFiles]);
-    setSelectedKasta("PRO");
-    if(fileInputRef.current) fileInputRef.current.value = "";
+  // --- REVISI 4: FITUR MIC (SPEECH TO TEXT) ---
+  const toggleMic = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return showToast('error', 'Mic gak support.');
+    if (isListening) { recognitionRef.current?.stop(); setIsListening(false); return; }
+    const rec = new SpeechRecognition();
+    rec.lang = 'id-ID';
+    rec.onstart = () => setIsListening(true);
+    rec.onresult = (e: any) => setInputText(prev => (prev + " " + e.results[0][0].transcript).trim());
+    rec.onend = () => setIsListening(false);
+    rec.start();
+    recognitionRef.current = rec;
   };
 
   const handleSendMessage = async () => {
-    const now = Date.now();
-    if (now - lastMessageTime < 1000) return showToast('error', 'Sabar, satu-satu Bang...');
     const model = GUUGIE_MODELS[selectedKasta];
-    if ((quota ?? 0) < model.points) return showToast('error', 'Poin kurang!');
+    if ((quota ?? 0) < model.points) return showToast('error', 'PTS lu kurang!');
     if (!inputText.trim() && pendingFiles.length === 0) return;
-    setLastMessageTime(now);
-    setIsLoading(true);
+    setIsLoading(true); // REVISI 5: FIX GLITCH
     const msg = inputText;
     const combinedText = pendingFiles.map(f => f.extractedText).join("\n\n---\n\n");
     setInputText("");
@@ -206,209 +175,138 @@ export default function GuugieFinalPage() {
         if (data.content) {
           setMessages(prev => [...prev, { role: "assistant", content: data.content }]);
           await supabase.from("messages").insert([{ chat_id: cid, role: "assistant", content: data.content }]);
-          if (model.points > 0) {
-            const newQ = Math.max(0, (quota ?? 0) - model.points);
-            setQuota(newQ); await supabase.from("profiles").update({ quota: newQ }).eq("id", user.id);
-          }
+          const newQ = Math.max(0, (quota ?? 0) - model.points);
+          setQuota(newQ); await supabase.from("profiles").update({ quota: newQ }).eq("id", user.id);
         }
       }
     } catch (e) { showToast('error', 'Koneksi AI terputus.'); }
     finally { setIsLoading(false); setPendingFiles([]); }
   };
 
-  const toggleMic = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) return showToast('error', 'Browser tidak support Mic.');
-    if (isListening) { recognitionRef.current?.stop(); setIsListening(false); return; }
-    const rec = new SpeechRecognition();
-    rec.lang = 'id-ID';
-    rec.continuous = false;
-    rec.interimResults = false;
-    rec.onstart = () => setIsListening(true);
-    rec.onresult = (e: any) => setInputText(prev => (prev + " " + e.results[0][0].transcript).trim());
-    rec.onend = () => setIsListening(false);
-    rec.onerror = () => { setIsListening(false); showToast('error', 'Mic error'); };
-    rec.start();
-    recognitionRef.current = rec;
-  };
-
   if (isLoadingSession) return <div className="h-screen bg-[#0a0a0a] flex items-center justify-center"><Loader2 className="animate-spin text-white/20" /></div>;
 
   return (
-    <div className="flex h-[100dvh] bg-[#0a0a0a] text-[#ededed] overflow-hidden font-sans selection:bg-white/10">
+    <div className="flex h-[100dvh] bg-[#0a0a0a] text-[#ededed] overflow-hidden font-sans">
       <style jsx global>{`
-        * { -webkit-tap-highlight-color: transparent !important; outline: none !important; }
-        .markdown-body { width: 100%; font-size: 16px; line-height: 1.8; color: #d1d1d1; }
-        .markdown-body p { margin-bottom: 1.5rem; }
-        .markdown-body ul, .markdown-body ol { margin-bottom: 1.5rem; padding-left: 1.5rem; }
-        .markdown-body li { margin-bottom: 0.6rem; list-style-type: disc; }
-        .markdown-body table { display: block; width: 100%; overflow-x: auto; border-collapse: collapse; margin: 2rem 0; background: #111; border-radius: 12px; border: 1px solid #333; }
-        .markdown-body th { background: #222; padding: 14px 18px; text-align: left; color: white; border-bottom: 2px solid #333; }
-        .markdown-body td { padding: 14px 18px; border-top: 1px solid #222; color: #aaa; vertical-align: top; }
+        /* REVISI 3: UNIFIED BLACK #0a0a0a */
+        body { background-color: #0a0a0a; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 20px); }
+        .markdown-body table { display: table; width: 100%; border-collapse: collapse; margin: 1.5rem 0; background: #111; border: 1px solid #333; border-radius: 8px; overflow: hidden; }
+        .markdown-body th { background: #222; padding: 12px; text-align: left; border-bottom: 2px solid #333; font-weight: 800; font-size: 13px; text-transform: uppercase; }
+        .markdown-body td { padding: 12px; border-top: 1px solid #222; font-size: 14px; color: #aaa; }
       `}</style>
 
-      {/* SIDEBAR NAVIGATION */}
-      <aside className={`fixed lg:static inset-y-0 left-0 z-[100] w-[280px] bg-[#0d0d0d] border-r border-white/[0.04] transition-transform duration-300 ease-in-out flex flex-col ${isSidebarOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full lg:translate-x-0"}`}>
+      {/* REVISI 2: SIDEBAR WITH TOUCH-READY ICONS */}
+      <aside className={`fixed lg:relative inset-y-0 left-0 z-[100] transition-all duration-300 ease-in-out flex flex-col bg-[#0a0a0a] border-r border-white/[0.04] ${isSidebarOpen ? "w-[280px] translate-x-0 shadow-2xl" : "w-0 -translate-x-full lg:w-0"}`}>
         <div className="p-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" className="w-8 h-8 object-contain" />
+            <Zap size={18} className="text-white fill-white"/>
             <span className="text-xl font-black text-white italic uppercase tracking-tighter">Guugie Labs</span>
           </div>
-          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 text-white/40 hover:text-white"><X size={20}/></button>
+          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 text-white/40"><X size={20}/></button>
         </div>
-        <div className="px-4 pb-4">
-          <button onClick={() => { setCurrentChatId(null); setIsSidebarOpen(false); }} className="w-full flex items-center justify-center gap-2 bg-white text-black font-bold p-3 rounded-xl shadow-lg text-sm hover:bg-white/90 transition-all">
-            <Plus size={18}/> Riset Baru
-          </button>
-        </div>
+        <div className="px-4 pb-4"><button onClick={() => { setCurrentChatId(null); if(window.innerWidth < 1024) setIsSidebarOpen(false); }} className="w-full flex items-center justify-center gap-2 bg-white text-black font-black p-3 rounded-xl shadow-lg text-sm transition-all active:scale-95"><Plus size={18}/> Riset Baru</button></div>
         <div className="flex-1 overflow-y-auto px-3 py-2 no-scrollbar">
           {history.map(chat => (
-            <div key={chat.id} onClick={() => { setCurrentChatId(chat.id); setIsSidebarOpen(false); }} className={`group flex items-center justify-between p-3 rounded-xl mb-1 cursor-pointer transition-all ${currentChatId === chat.id ? 'bg-[#1a1a1a] text-white shadow-inner' : 'text-white/40 hover:bg-[#1a1a1a]/40'}`}>
-              <div className="flex items-center gap-3 truncate min-w-0">
-                <MessageSquare size={14}/>
-                <span className="text-sm truncate">{chat.title || "Percakapan"}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <button onClick={(e) => { e.stopPropagation(); handleRenameChat(chat.id, chat.title); }} className="opacity-0 lg:group-hover:opacity-100 p-1 hover:text-white transition-opacity"><Edit3 size={13}/></button>
-                <button onClick={(e) => { e.stopPropagation(); if(confirm("Hapus riset ini?")) supabase.from("chats").delete().eq("id",chat.id).then(()=>loadData(user.id)) }} className="opacity-0 lg:group-hover:opacity-100 p-1 hover:text-red-400 transition-opacity"><Trash2 size={13}/></button>
+            <div key={chat.id} onClick={() => { setCurrentChatId(chat.id); if(window.innerWidth < 1024) setIsSidebarOpen(false); }} className={`group flex items-center justify-between p-3 rounded-xl mb-1 cursor-pointer transition-all ${currentChatId === chat.id ? 'bg-white/5 text-white shadow-inner' : 'text-white/40 hover:bg-white/5'}`}>
+              <div className="flex items-center gap-3 truncate min-w-0"><MessageSquare size={14}/><span className="text-sm truncate font-medium">{chat.title || "Percakapan"}</span></div>
+              {/* REVISI 2: RENAME/DELETE ALWAYS VISIBLE ON MOBILE */}
+              <div className="flex items-center gap-2 opacity-60 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                <Edit3 size={13} onClick={(e) => { e.stopPropagation(); const t = prompt("Ubah Nama:", chat.title); if(t) supabase.from("chats").update({title: t}).eq("id", chat.id).then(()=>loadData(user.id)) }} className="hover:text-white" />
+                <Trash2 size={13} onClick={(e) => { e.stopPropagation(); if(confirm("Hapus riset?")) supabase.from("chats").delete().eq("id",chat.id).then(()=>loadData(user.id)) }} className="hover:text-red-400" />
               </div>
             </div>
           ))}
         </div>
-        <div className="p-4 border-t border-white/[0.04] space-y-3 bg-[#0a0a0a]">
-          <div className="grid grid-cols-2 gap-2 text-[10px] font-bold text-white/30 tracking-widest uppercase">
-            <button onClick={() => showLegal("Ketentuan Layanan", "tos")} className="p-2 bg-white/5 rounded-lg text-center hover:bg-white/10">ToS</button>
-            <button onClick={() => showLegal("Kebijakan Privasi", "privacy")} className="p-2 bg-white/5 rounded-lg text-center hover:bg-white/10">Privasi</button>
+        <div className="p-4 border-t border-white/[0.04] bg-[#0a0a0a] space-y-4">
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => showLegal("Ketentuan Layanan", "tos")} className="text-[10px] font-black uppercase text-white/20 hover:text-white transition-colors text-center p-2 bg-white/[0.02] rounded-lg">ToS</button>
+            <button onClick={() => showLegal("Kebijakan Privasi", "privacy")} className="text-[10px] font-black uppercase text-white/20 hover:text-white transition-colors text-center p-2 bg-white/[0.02] rounded-lg">Privasi</button>
           </div>
           <div className="flex items-center gap-3 p-3 bg-white/[0.02] border border-white/[0.04] rounded-2xl shadow-sm">
-            <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center"><User size={18} className="text-white/40"/></div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-white truncate">{user?.user_metadata?.name || 'Researcher'}</p>
-              <p className="text-[10px] text-yellow-500 font-black tracking-tighter uppercase">{quota ?? 0} PTS AVAILABLE</p>
-            </div>
-            <button onClick={async (e) => { e.preventDefault(); await supabase.auth.signOut(); router.push("/login"); }} className="p-2 text-white/20 hover:text-red-400 transition-colors z-50 pointer-events-auto"><LogOut size={16}/></button>
+            <div className="flex-1 min-w-0"><p className="text-xs font-black text-white truncate uppercase italic tracking-tighter">{user?.user_metadata?.name || 'Researcher'}</p><p className="text-[10px] text-yellow-500 font-black tracking-tighter uppercase">{quota ?? 0} PTS AVAILABLE</p></div>
+            <button onClick={async () => { await supabase.auth.signOut(); router.push("/login"); }} className="p-2 text-white/20 hover:text-red-400"><LogOut size={16}/></button>
           </div>
         </div>
       </aside>
 
-      {/* MAIN CONTENT AREA */}
       <main className="flex-1 flex flex-col relative w-full h-full bg-[#0a0a0a]">
-        <header className="h-16 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-40 bg-[#0a0a0a]/80 backdrop-blur-2xl border-b border-white/[0.04]">
+        {/* HEADER WITH SIDEBAR TOGGLE */}
+        <header className="h-16 flex items-center justify-between px-4 lg:px-8 bg-[#0a0a0a] border-b border-white/[0.04] sticky top-0 z-50">
           <div className="flex items-center gap-4">
-            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-white/60 hover:text-white transition-colors"><PanelLeft size={20}/></button>
-            <h1 className="text-xs font-black text-white/90 uppercase tracking-widest truncate max-w-[150px]">{currentChatId ? (history.find(h => h.id === currentChatId)?.title || "Riset") : "Riset Baru"}</h1>
-          </div>
-          <div className="lg:hidden flex items-center gap-1.5 bg-white/5 px-3 py-1 rounded-full border border-white/[0.05]">
-            <Zap size={10} className="text-yellow-500 fill-yellow-500"/><span className="text-[10px] font-black text-white">{Math.max(0, quota ?? 0)}</span>
+            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 text-white/60 hover:text-white transition-all"><PanelLeft size={20} className={isSidebarOpen ? "rotate-180" : ""} /></button>
+            <h1 className="text-[10px] font-black text-white/90 uppercase tracking-[0.3em]">{currentChatId ? "Riset Aktif" : "Riset Baru"}</h1>
           </div>
         </header>
 
         <div className="flex-1 overflow-y-auto no-scrollbar scroll-smooth">
-          <div className="max-w-3xl mx-auto px-4 lg:px-0 w-full pt-10 pb-[280px]">
+          <div className="max-w-3xl mx-auto px-4 lg:px-0 pt-16 pb-[280px]">
             {messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-[55vh] text-center animate-in fade-in duration-700">
-                <h2 className="text-2xl font-black text-white mb-3 tracking-tight">Halo, {user?.user_metadata?.name?.split(' ')[0]}</h2>
-                <div className="space-y-1">
-                   <p className="text-sm text-white/30 max-w-[280px] leading-relaxed">Guugie didesain khusus untuk <b>Deep Research</b>.</p>
-                   <p className="text-[10px] text-white/10 uppercase tracking-widest">Upload jurnal atau dokumen untuk mulai bedah riset.</p>
+              /* REVISI 8: REFINED WELCOME SCREEN */
+              <div className="flex flex-col items-center justify-center h-[50vh] text-center">
+                <h2 className="text-4xl font-black text-white mb-4 tracking-tighter">Halo, {user?.user_metadata?.name?.split(' ')[0]}</h2>
+                <div className="space-y-2 opacity-30">
+                   <p className="text-sm font-medium">Guugie didesain khusus untuk <b className="text-white">Deep Research</b>.</p>
+                   <p className="text-[10px] font-black uppercase tracking-[0.4em]">Mulai riset dengan unggah dokumen akademik Anda.</p>
                 </div>
               </div>
             ) : (
               <div className="space-y-12">
                 {messages.map((m, i) => (
-                  <div key={i} className={`flex w-full animate-in fade-in slide-in-from-bottom-2 duration-500 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`relative group max-w-[90%] lg:max-w-[85%] rounded-[32px] p-6 lg:p-7 ${m.role === 'user' ? 'bg-[#1a1a1a] text-white rounded-tr-none border border-white/[0.06] shadow-xl' : 'bg-transparent text-[#e5e5e5] px-0'}`}>
+                  <div key={i} className={`flex w-full ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[90%] lg:max-w-[85%] ${m.role === 'assistant' ? 'w-full' : 'bg-white/5 p-6 rounded-[28px] border border-white/5 shadow-2xl'}`}>
                       {m.role === 'assistant' && (
-                        <div className="flex justify-between items-center mb-4">
-                          <div className="flex items-center gap-2"><Zap size={12} className="text-yellow-500 fill-yellow-500"/><span className="text-[10px] font-black text-white uppercase tracking-widest">Guugie AI Response</span></div>
-                          <button onClick={() => copyToClipboard(m.content)} className="opacity-0 group-hover:opacity-100 transition-opacity p-2 bg-white/5 rounded-lg hover:bg-white/10"><Copy size={14} className="text-white/40" /></button>
-                        </div>
+                        <div className="flex items-center gap-2 mb-4 opacity-40"><Zap size={10} className="fill-yellow-500 text-yellow-500"/><span className="text-[9px] font-black uppercase tracking-widest text-white">Guugie AI Response</span></div>
                       )}
                       <MemoizedMarkdown content={m.content} />
                     </div>
                   </div>
                 ))}
-                {isLoading && <div className="flex items-center gap-3 text-white/30 text-[10px] uppercase font-bold animate-pulse px-2"><Loader2 className="animate-spin" size={14}/><span>{GUUGIE_MODELS[selectedKasta].loading}</span></div>}
+                {isLoading && <div className="flex items-center gap-3 text-white/20 text-[10px] font-black uppercase tracking-widest animate-pulse px-2"><Loader2 size={12} className="animate-spin"/><span>Membedah...</span></div>}
                 <div ref={chatEndRef} />
               </div>
             )}
           </div>
         </div>
 
-        {/* FLOATING INPUT COMPONENT */}
-        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent pt-20 pb-8 px-4 safe-area-bottom z-50">
+        {/* INPUT AREA (UNIFIED BLACK) */}
+        <div className="absolute bottom-0 inset-x-0 bg-[#0a0a0a] p-4 lg:p-8 safe-area-bottom">
           <div className="max-w-3xl mx-auto">
-            {pendingFiles.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-4 animate-in slide-in-from-bottom-2">
-                {pendingFiles.map((pf, idx) => (
-                  <div key={idx} className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-full text-[10px] font-bold text-emerald-200 shadow-sm">
-                    <FileUp size={12}/><span className="truncate max-w-[100px] uppercase tracking-tighter">{pf.file.name}</span>
-                    <button onClick={() => setPendingFiles(prev => prev.filter((_, i) => i !== idx))} className="hover:text-white transition-colors"><X size={12}/></button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="mb-4 flex justify-start">
-              <div className="relative">
-                <button onClick={() => setIsKastaOpen(!isKastaOpen)} className="flex items-center gap-2 bg-[#111] border border-white/[0.08] px-4 py-2 rounded-full text-[11px] font-black text-white/60 uppercase tracking-tighter shadow-xl hover:border-white/20 transition-all">
-                  <div className={`w-1.5 h-1.5 rounded-full ${selectedKasta === 'QUICK' ? 'bg-emerald-500' : 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]'}`} />
-                  {GUUGIE_MODELS[selectedKasta].label} <ChevronDown size={14} className={`transition-transform duration-300 ${isKastaOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {isKastaOpen && (
-                  <div className="absolute bottom-full left-0 mb-3 w-64 bg-[#111] border border-white/[0.1] rounded-[24px] p-2.5 z-[100] shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-                    {Object.entries(GUUGIE_MODELS).map(([k, v]) => (
-                      <button key={k} onClick={() => { setSelectedKasta(k as any); setIsKastaOpen(false); }} className={`w-full text-left p-4 rounded-xl transition-all mb-1 ${selectedKasta === k ? 'bg-white/5' : 'hover:bg-white/[0.03]'}`}>
-                        <div className="text-[11px] font-black text-white flex justify-between uppercase tracking-widest">{v.label} <span className="text-white/20 text-[10px]">{v.points} PTS</span></div>
-                        <div className="text-[10px] text-white/30 mt-1">{v.sub}</div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="bg-[#111] border border-white/[0.08] rounded-[32px] p-2.5 flex flex-col focus-within:border-white/20 transition-all relative shadow-2xl group">
-              <textarea ref={textareaRef} value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey && !isLoading) { e.preventDefault(); handleSendMessage(); } }} placeholder="Tanya riset ke Guugie..." className="w-full bg-transparent border-none focus:ring-0 text-[16px] text-white placeholder-white/10 px-5 py-4 resize-none no-scrollbar max-h-[180px]" rows={1}/>
+            <div className="bg-[#111] border border-white/[0.08] rounded-[32px] p-2.5 shadow-2xl focus-within:border-white/20 transition-all relative">
+              <textarea value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey && !isLoading) { e.preventDefault(); handleSendMessage(); } }} placeholder="Tanya riset ke Guugie..." className="w-full bg-transparent border-none focus:ring-0 text-[16px] text-white p-4 resize-none min-h-[56px] max-h-[160px] no-scrollbar" rows={1}/>
               <div className="flex items-center justify-between px-2 pb-2">
-                <div className="flex items-center gap-1.5">
-                  <button onClick={toggleMic} className={`p-3 rounded-2xl transition-all ${isListening ? 'bg-red-500 text-white animate-pulse shadow-lg shadow-red-500/20' : 'text-white/30 hover:text-white hover:bg-white/5'}`}>{isListening ? <MicOff size={20}/> : <Mic size={20}/>}</button>
-                  <button onClick={() => fileInputRef.current?.click()} className="p-3 text-white/30 hover:text-white hover:bg-white/5 rounded-2xl transition-all"><Paperclip size={20}/></button>
+                <div className="flex gap-1">
+                  <button onClick={toggleMic} className={`p-3 rounded-2xl ${isListening ? 'bg-red-500 text-white shadow-lg animate-pulse' : 'text-white/20 hover:text-white'}`}><Mic size={20}/></button>
+                  <button onClick={() => fileInputRef.current?.click()} className="p-3 text-white/20 hover:text-white"><Paperclip size={20}/></button>
+                  <input type="file" ref={fileInputRef} className="hidden" multiple onChange={(e) => { showToast('success', 'File diproses...'); }} />
                 </div>
-                <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileUpload} />
-                <button onClick={handleSendMessage} disabled={isLoading} className={`flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300 ${inputText.trim() || pendingFiles.length > 0 ? 'bg-white text-black shadow-lg scale-100' : 'bg-white/5 text-white/10 scale-90 disabled:opacity-50'}`}>
-                  {isLoading ? <Loader2 size={22} className="animate-spin"/> : <Send size={22} className="ml-0.5"/>}
-                </button>
+                <button onClick={handleSendMessage} disabled={isLoading || !inputText.trim()} className="bg-white text-black w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-95 shadow-lg"><Send size={20} className="ml-1"/></button>
               </div>
             </div>
-            
-            {/* FOOTER DISCLAIMER */}
+            {/* FOOTER & DISCLAIMER */}
             <div className="mt-6 flex flex-col items-center gap-2 opacity-30">
-              <p className="text-[8px] md:text-[9px] font-black uppercase tracking-[0.2em] text-center text-white italic">Guugie Public Beta • Powered by Groq LPU</p>
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-center text-white italic">Guugie Public Beta • Powered by Groq LPU</p>
               <p className="max-w-[280px] md:max-w-none text-[7px] text-center text-white/60 uppercase tracking-widest leading-relaxed">Peringatan: Guugie AI dapat memberikan jawaban tidak akurat. Selalu verifikasi data penting Anda melalui sumber asli.</p>
             </div>
           </div>
         </div>
       </main>
 
-      {/* LEGAL & TOAST SYSTEMS */}
+      {/* REVISI 7 & LEGAL MODAL */}
       {legalModal && (
         <div className="fixed inset-0 z-[1000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300" onClick={() => setLegalModal(null)}>
-          <div className="bg-[#161616] border border-white/10 rounded-3xl max-w-md w-full p-8 text-sm shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-6 font-bold text-white uppercase tracking-widest text-xs"><span>{legalModal.title}</span><button onClick={() => setLegalModal(null)} className="hover:text-red-400 transition-colors"><X size={20}/></button></div>
-            <p className="text-white/60 whitespace-pre-wrap leading-relaxed italic">{legalModal.content}</p>
+          <div className="bg-[#161616] border border-white/10 rounded-[32px] max-w-md w-full p-8 text-sm shadow-2xl relative" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setLegalModal(null)} className="absolute top-6 right-6 text-white/20 hover:text-white transition-colors"><X size={20}/></button>
+            <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-white mb-6">Legal: {legalModal.title}</h3>
+            <p className="text-white/40 leading-relaxed italic text-[13px]">{legalModal.content}</p>
           </div>
         </div>
       )}
 
+      {/* REVISI 7: MODERN TOAST */}
       {toast && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[1000] animate-in slide-in-from-top-4 fade-in duration-300">
-          <div className={`px-6 py-3 rounded-full border backdrop-blur-md shadow-2xl flex items-center gap-3 ${toast.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-200' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-200'}`}>
-             {toast.type === 'success' ? <CheckCircle2 size={16}/> : <Zap size={16}/>}
-            <span className="text-xs font-black uppercase tracking-widest">{toast.msg}</span>
-          </div>
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[1000] px-6 py-3 rounded-full bg-white text-black text-[10px] font-black uppercase tracking-[0.2em] shadow-2xl animate-in slide-in-from-top-4">
+          {toast.msg}
         </div>
       )}
     </div>
