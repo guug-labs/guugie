@@ -57,12 +57,11 @@ export default function LoginPage() {
       
       <div className="w-full max-w-[400px] px-8 flex flex-col items-center animate-in fade-in zoom-in-95 duration-1000 relative z-20">
         
-        {/* LOGO & BRANDING (MONOCHROME & TEGAK) */}
+        {/* LOGO & BRANDING (FIXED: NO ITALIC, NO BLUE, MONOCHROME) */}
         <div className="mb-14 flex flex-col items-center gap-6">
           <div className="relative group">
             <div className="absolute inset-0 bg-white/5 blur-2xl rounded-full" />
             <div className="w-24 h-24 bg-[#111] rounded-[32px] border border-white/[0.08] flex items-center justify-center shadow-2xl relative z-10 overflow-hidden p-4">
-              {/* LOGO PNG */}
               <img 
                 src="/logo.png" 
                 alt="GUUG LABS" 
@@ -72,7 +71,7 @@ export default function LoginPage() {
           </div>
 
           <div className="text-center space-y-2">
-            {/* TEXT: TEGAK (NO ITALIC), NO BLUE */}
+            {/* INI YANG TADI MASIH BIRU, SEKARANG UDAH PUTIH BERSIH */}
             <h1 className="text-4xl font-bold uppercase tracking-tighter text-white">
               GUUGIE <span className="text-white/50">v2.0</span>
             </h1>
@@ -112,7 +111,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* FOOTER (NO ITALIC, NO BLUE) */}
+        {/* FOOTER */}
         <div className="mt-20 flex flex-col items-center gap-6 opacity-20">
           <div className="flex items-center gap-6">
              <div className="h-px w-8 bg-white/10"></div>
