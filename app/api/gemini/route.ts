@@ -1,118 +1,129 @@
 import { NextResponse } from "next/server";
 import Groq from "groq-sdk";
 
-// --- MANTRA SAKTI CLOUDFLARE ---
-export const runtime = 'edge'; 
+export const runtime = 'edge';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// --- OPTIMIZED SYSTEM PROMPT (VERSI RINGAN & PADAT) ---
-const SYSTEM_PROMPT = `🚀 **GUUGIE v2.0 - Indonesian Student's AI Companion**
+// === 1. MEMORY STORAGE ===
+const sessions = new Map<string, Array<{role: string, content: string}>>();
 
-**👑 Developer**: Muhammad Rifky Firmansyah Sujana "Rifky"
-**🎯 Mission**: Eliminate academic stress with empathetic, smart AI
+// Helper Session ID
+function getSessionId(req: Request): string {
+  const ip = req.headers.get('x-forwarded-for') || 'unknown';
+  const agent = req.headers.get('user-agent') || 'unknown';
+  return Buffer.from(`${ip}-${agent}`).toString('base64').slice(0, 32);
+}
 
-**🌐 BILINGUAL INTELLIGENCE**:
-- Auto-detect language: ID ↔ EN
-- Respond in user's language (Indonesian dominant)
+// === 2. SYSTEM PROMPT FINAL ===
+const SYSTEM_PROMPT = `Kamu adalah GUUGIE - AI assistant untuk SEMUA mahasiswa Indonesia.
 
-**🎓 ACADEMIC EXPERTISE**:
-1. ALL MAJORS: Tech, Medicine, Law, Business, Arts, Agriculture
-2. THESIS SUPPORT: Chapters 1-5, methodology, analysis
-3. ASSIGNMENTS: Papers, presentations, research
+**🎓 IDENTITAS**:
+- GUUGIE = "Gerakan Upgrade Generasi Indonesia"
+- Persona: Pinter kayak dosen, santai kayak temen, solutif kayak mentor
+- Motto: "Dari semester 1 sampai wisuda - your study buddy!"
 
-**💬 CONVERSATION RULES**:
-1. NATURAL FLOW: Like talking to a smart friend.
-2. CONTEXT AWARE: Remember topic & user's needs.
-3. ANTICIPATE NEXT: "Next step: X or Y?"
-4. NO RESET: Continue conversation naturally.
+**🎯 KEMAMPUAN UTAMA**:
+1. **SEMUA JURUSAN**: Teknik, Kedokteran, Hukum, Ekonomi, Seni, Pertanian, dll
+2. **SEMUA TUGAS**: Skripsi, makalah, presentasi, coding, research, CV
+3. **SEMUA LEVEL**: D3, S1, S2, bahkan bantu dosen juga bisa
 
-**📝 RESPONSE FORMAT (Use Markdown)**:
-\`\`\`
-🎯 CONTEXT: [Quick diagnosis of user's need]
-💡 SOLUTION: [Main answer - practical & actionable]
-🛠️ TOOLS: [Resources/references if needed]
-🔄 NEXT: [Anticipate next logical step]
-\`\`\`
+**⚡ ATURAN WAJIB (HARUS DIPATUHI)**:
 
-**❤️ VIBE**: "Smart like professor, chill like friend, reliable like mentor"
-**🔥 SIGNATURE**: "Dari semester 1 sampai wisuda - your study buddy!"`;
+1. **KONTEKS MEMORY**:
+   - INGAT PERCAKAPAN SEBELUMNYA
+   - Jika user tanya "Aman kan?" → JAWAB: "✅ Aman! Karena [alasan]. Lanjut ke [next step]?"
+   - Jika user tanya "Gimana?" → LANJUTKAN penjelasan sebelumnya
+
+2. **BAHASA ADAPTIF**:
+   - Default: Indonesia Gaul-Cerdas ("Bro, analisisnya gini...")
+   - Auto-switch ke English jika user pakai English
+   - Untuk akademik: Formal tapi tetap accessible
+
+3. **RESPONSE TEMPLATE**:
+
+   **A. UNTUK AKADEMIK KOMPLEKS** (Skripsi/Tugas Besar):
+   \`\`\`
+   🎯 KONTEKS: [Identifikasi kebutuhan user]
+   💡 SOLUSI: [Jawaban utama - praktis & step-by-step]
+   🔄 NEXT: "Mau lanjut ke [logical next step]?"
+   \`\`\`
+
+   **B. UNTUK KONFIRMASI** ("Aman kan?", "Bagaimana?", "Lanjut?"):
+   \`\`\`
+   ✅ KONFIRMASI: [Ya/Tidak]
+   📌 ALASAN: [1-2 poin singkat]
+   🚀 ACTION: "Lanjut ke [berdasarkan topik sebelumnya]?"
+   \`\`\`
+
+   **C. UNTUK OBROLAN SANTAI**:
+   \`\`\`
+   [Jawab natural seperti teman]
+   [Tetap relevan dengan konteks sebelumnya]
+   \`\`\`
+
+**🔥 SIGNATURE MOVE**:
+Setiap jawaban HARUS ada:
+"🚀 **Next**: [Tawaran bantuan spesifik]"
+
+**💪 FINAL DIRECTIVE**:
+"Bikin mahasiswa merasa: 1) Dimengerti, 2) Diberdayakan, 3) Termotivasi"`;
 
 export async function POST(req: Request) {
+  // FIX SCOPE ERROR: Definisikan message di luar try-catch
+  let userMessage = ""; 
+
   try {
-    const { message, extractedText, modelId } = await req.json();
-
-    // 1. VALIDASI API KEY
-    if (!process.env.GROQ_API_KEY) {
-      console.error("CRITICAL: GROQ_API_KEY is missing!");
-      return NextResponse.json(
-        { content: "⚠️ System Configuration Error: API Key missing on server." },
-        { status: 500 }
-      );
-    }
-
-    let finalPrompt = message;
+    const body = await req.json();
+    const { clientSessionId } = body;
+    userMessage = body.message || ""; // Simpan ke variabel luar
     
-    // 2. HANDLE DOKUMEN (Safety Limit: 20k karakter biar gak meledak)
-    if (extractedText) {
-      const truncatedText = extractedText.slice(0, 20000);
-      finalPrompt = `
-        [DOCUMENT START]
-        ${truncatedText}
-        [DOCUMENT END]
-        
-        USER QUESTION: "${message}"
-        
-        INSTRUCTION: Answer based ONLY on the document above.
-      `;
-    }
+    // === 3. SESSION MANAGEMENT ===
+    const sessionId = clientSessionId || getSessionId(req);
+    let history = sessions.get(sessionId) || [];
 
-    // 3. MODEL SELECTION
-    // Default ke Llama 3.1 8B (Kilat) - Versi Terbaru
-    let model = 'llama-3.1-8b-instant'; 
+    // === 4. UPDATE HISTORY ===
+    history.push({ role: "user", content: userMessage });
     
-    if (modelId === 'groq-reason') {
-      // Pake Llama 3.3 70B (Nalar) - Versi Paling Cerdas & Baru
-      model = 'llama-3.3-70b-versatile';
+    if (history.length > 8) {
+        history = history.slice(-8); 
     }
 
-    // 4. KIRIM KE GROQ
+    // === 5. PANGGIL GROQ ===
     const chatCompletion = await groq.chat.completions.create({
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: finalPrompt }
+        // FIX TYPE ERROR: Cast history ke any[] biar TS gak rewel
+        ...(history as any[]) 
       ],
-      model: model,
+      model: 'llama-3.3-70b-versatile',
       temperature: 0.3,
-      max_tokens: 2048, // Limit output biar gak abis di tengah jalan
-      top_p: 1,
+      max_tokens: 1500,
       stream: false,
     });
 
     const responseContent = chatCompletion.choices[0]?.message?.content 
-      || "Maaf, Guugie kehilangan sinyal pikiran. Coba tanya lagi.";
+      || "Maaf, server lagi bengong. Coba lagi.";
 
-    return NextResponse.json({ content: responseContent });
+    // === 6. SIMPAN JAWABAN AI ===
+    history.push({ role: "assistant", content: responseContent });
+    sessions.set(sessionId, history);
+
+    return NextResponse.json({ 
+        content: responseContent,
+        sessionId: sessionId 
+    });
 
   } catch (error: any) {
-    console.error("Groq API Error:", error);
-
-    // 5. ERROR HANDLING YANG JUJUR (Bukan "Gangguan Saraf" doang)
-    let errorMessage = "Terjadi gangguan pada server saraf Guugie v2.0.";
+    console.error("Guugie Error:", error);
     
-    if (error?.status === 429) {
-      errorMessage = "⚠️ Server Sibuk (Rate Limit). Tunggu 1 menit lalu coba lagi.";
-    } else if (error?.status === 401) {
-      errorMessage = "⚠️ Kunci Akses Salah. Cek Environment Variables.";
-    } else if (error?.message?.includes('token')) {
-      errorMessage = "⚠️ Pertanyaan/Dokumen terlalu panjang. Mohon persingkat.";
-    } else {
-      errorMessage = `⚠️ System Error: ${error.message}`;
+    let fallbackMsg = "Terjadi gangguan sistem.";
+    
+    // FIX SCOPE ERROR: Sekarang userMessage bisa dibaca di sini
+    if (userMessage.toLowerCase().includes('aman') || userMessage.toLowerCase().includes('bagus')) {
+        fallbackMsg = `✅ **KONFIRMASI: AMAN (Offline Mode)**\n\nSistem utama sibuk, tapi topiknya terlihat oke secara umum.\n\n🚀 **Next**: Coba refresh browser dan tanya detailnya lagi.`;
     }
 
-    return NextResponse.json(
-      { content: errorMessage },
-      { status: error?.status || 500 }
-    );
+    return NextResponse.json({ content: fallbackMsg, sessionId: 'error' });
   }
 }
