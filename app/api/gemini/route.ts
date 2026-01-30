@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import Groq from "groq-sdk";
 
+// --- MANTRA SAKTI CLOUDFLARE ---
+export const runtime = 'edge'; 
+
 // Inisialisasi Groq Client
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
@@ -145,13 +148,9 @@ const SYSTEM_PROMPT = `
 
 export async function POST(req: Request) {
   try {
-    // 1. Tangkap Data dari Frontend
     const { message, extractedText, modelId } = await req.json();
 
-    // 2. RAG LOGIC (Retrieval Augmented Generation)
-    // Jika ada file dokumen, gabungkan ke dalam prompt agar AI "membaca" file tersebut.
     let finalPrompt = message;
-    
     if (extractedText) {
       finalPrompt = `
         [INSTRUKSI KHUSUS: User telah melampirkan dokumen referensi. Jawablah pertanyaan user HANYA berdasarkan data di dalam [DOKUMEN] di bawah ini. Jangan mengarang data di luar dokumen ini jika tidak diminta.]
@@ -164,23 +163,18 @@ export async function POST(req: Request) {
       `;
     }
 
-    // 3. PANGGIL OTAK AI (GROQ LPU)
     const chatCompletion = await groq.chat.completions.create({
       messages: [
-        { role: "system", content: SYSTEM_PROMPT }, // Identitas ULTIMATE ditanam di sini
-        { role: "user", content: finalPrompt }      // Pesan User (+ Dokumen jika ada)
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: finalPrompt }
       ],
-      // Selector Model (Kilat vs Nalar)
       model: modelId === 'groq-reason' ? 'llama3-70b-8192' : 'llama3-8b-8192',
-      
-      // 4. SETTINGAN "SESUAI ALUR" (AKADEMIK)
-      temperature: 0.3, // 0.3 = Stabil, Logis, Tidak Halu (Sesuai Persona "Academic Expert")
-      max_tokens: 4096, // Jawaban panjang & tuntas.
+      temperature: 0.3,
+      max_tokens: 4096,
       top_p: 1,
       stream: false,
     });
 
-    // 5. Kirim Balik Jawaban ke Frontend
     const responseContent = chatCompletion.choices[0]?.message?.content || "Maaf, Guugie sedang memproses data yang sangat besar. Mohon persingkat pertanyaan Anda.";
 
     return NextResponse.json({ content: responseContent });
