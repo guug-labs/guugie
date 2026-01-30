@@ -68,10 +68,12 @@ export async function POST(req: Request) {
     }
 
     // 3. MODEL SELECTION
-    // Default ke 8b (Kilat) biar irit & cepet. Pake 70b (Nalar) cuma kalau diminta.
-    let model = 'llama3-8b-8192'; 
+    // Default ke Llama 3.1 8B (Kilat) - Versi Terbaru
+    let model = 'llama-3.1-8b-instant'; 
+    
     if (modelId === 'groq-reason') {
-      model = 'llama3-70b-8192';
+      // Pake Llama 3.3 70B (Nalar) - Versi Paling Cerdas & Baru
+      model = 'llama-3.3-70b-versatile';
     }
 
     // 4. KIRIM KE GROQ
