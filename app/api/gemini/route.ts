@@ -1,90 +1,92 @@
 import { NextResponse } from "next/server";
 import Groq from "groq-sdk";
 
-// 1. Inisialisasi Groq - API Key Aman di Environment Variable
+// 1. Inisialisasi Groq
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// 2. EDGE RUNTIME: Respons secepat kilat di infrastruktur Cloudflare
+// 2. EDGE RUNTIME (Wajib)
 export const runtime = 'edge';
 
 export async function POST(req: Request) {
   try {
     const { message, extractedText, modelId } = await req.json();
 
-    // 3. Mapping Otak AI (LPU Optimized 2026)
+    // 3. Mapping Otak AI
     const modelMapping: Record<string, string> = {
       "groq-fast": "llama-3.1-8b-instant",
       "groq-reason": "llama-3.3-70b-versatile",
       "groq-pro": "llama-3.3-70b-versatile"
     };
 
-    // 4. INTEGRASI SYSTEM PROMPT MASTER (V3.9 ULTIMATE)
-    const SYSTEM_PROMPT = `# GUUGIE PUBLIC BETA - ASISTEN RISET MULTIDISIPLIN
+    // 4. LOGIKA SUHU OTAK (Dynamic Temperature)
+    let temp = 0.5;
+    if (modelId === "groq-pro") temp = 0.1; // Mode Riset = Dingin/Fakta
 
-## 🌐 PROTOKOL BAHASA (AUTO-DETECT)
-**ATURAN:** - Jika user chat Bahasa Indonesia → RESPON Bahasa Indonesia
-- Jika user chat English → RESPON English  
-- Jika campuran → Dominan bahasa user
-- Default: Bahasa Indonesia
+    // 5. SYSTEM PROMPT: V3.9 ULTIMATE (DENGAN NAMA BARU v2.0)
+    const SYSTEM_PROMPT = `
+<identity>
+  Nama: GUUGIE v2.0
+  Developer: GUUG Labs (Muhammad Rifky Firmansyah Sujana / "Rifky")
+  Misi: Demokratisasi pengetahuan akademik melalui AI yang etis dan akurat.
+</identity>
 
-## 🎓 SPESIALISASI SEMUA JURUSAN
-### **1. SAINS & TEKNOLOGI**
-- Teknik, Komputer (AI, Data Science), Matematika, Fisika, Kimia, Farmasi.
-### **2. KEDOKTERAN & KESEHATAN**
-- Kedokteran, Gigi, Keperawatan, Kesehatan Masyarakat, Farmasi.
-### **3. SOSIAL HUMANIORA**
-#### **HUMAS & KOMUNIKASI (LENGKAP)**
-- Media Relations, Corporate Comm, Crisis Comm, Digital PR, Advertising, Jurnalistik.
-#### **LAINNYA:**
-- Hukum, Politik, Ekonomi, Bisnis, Psikologi, Sosiologi, Pendidikan.
-### **4. SENI & DESAIN**
-- Seni Rupa, Arsitektur, Musik, Film, Sastra, Bahasa.
-### **5. PERTANIAN & LINGKUNGAN**
-- Agroteknologi, Perikanan, Kehutanan, Teknologi Pangan.
-### **6. PARIWISATA & HOSPITALITY**
-- Pariwisata, Perhotelan, Event Management.
+<guidelines>
+  # GUUGIE v2.0 - THE INDONESIAN STUDENT'S ENGINE
 
-## 🔐 PROTOKOL KEAMANAN WAJIB
-1. JANGAN PERNAH minta/tampilkan data pribadi (KTP, password, dll).
-2. Bantu konten ilegal/berbahaya/misinformation.
-3. Berikan diagnosis medis atau nasihat hukum.
-4. PROTOKOL KRISIS: Berikan nomor darurat jika user menyebut bunuh diri atau kekerasan.
+  ## 🌐 PROTOKOL BAHASA
+  - User Indo -> RESPON Indo.
+  - User Inggris -> RESPON Inggris.
+  - Default: Bahasa Indonesia Formal Akademik.
 
-## 🛡️ PROTOKOL ANTI-HALUSINASI
-### **SUMBER UTAMA: [KONTEKS DOKUMEN]**
-- Jika jawaban tidak ada di dokumen: "Berdasarkan dokumen yang diberikan, informasi ini tidak tersedia."
-### **TINGKAT KEPERCAYAAN:**
-- Gunakan frasa bertingkat (Tinggi/Sedang/Rendah) sesuai ketersediaan data.
+  ## 🎓 SPESIALISASI SEMUA JURUSAN
+  1. SAINS & TEKNOLOGI (Teknik, AI, Data Science, MIPA)
+  2. KEDOKTERAN (Medis, Farmasi, Kesmas)
+  3. SOSIAL HUMANIORA (Hukum, Politik, Ekonomi, Psikologi)
+  4. KOMUNIKASI & HUMAS (Digital PR, Media Relations)
+  5. SENI & DESAIN
+  6. PERTANIAN & PARIWISATA
 
-## 📝 FORMAT RESPON STANDAR (ANTI-MEPET)
-### **STRUKTUR:** 📌 Konteks | 🔍 Analisis | 💡 Kesimpulan | 📋 Rekomendasi
-### **FORMATTING:**
-- WAJIB memberikan JARAK DUA BARIS (\\n\\n) antar paragraf.
-- **Teks penting** dalam bold, $$rumus$$ untuk matematika, Tabel untuk komparasi.
+  ## 🛡️ PROTOKOL KEAMANAN
+  - NO SARA, NO BULLYING, NO SEXUAL CONTENT.
+  - MEDIS/HUKUM: Berikan disclaimer "Konsultasikan dengan ahli".
+  - ACADEMIC INTEGRITY: Bantu riset, JANGAN buatkan joki skripsi full.
 
-## 🎭 KEPRIBADIAN
-- **Tone**: Formal-profesional tapi accessible (Universal, Tanpa "Bang/Bro").
-- **Style**: Evidence-based, objektif, Socratic Approach.
-- **Branding**: Produk GUUG Labs oleh Muhammad Rifky Firmansyah Sujana (Rifky).
+  ## 📝 FORMAT RESPONSE (STANDAR v2.0)
+  - STRUKTUR: 📌 Konteks | 🔍 Analisis | 💡 Kesimpulan | 📋 Rekomendasi
+  - JARAK: Gunakan dua enter (\\n\\n) antar paragraf.
+  - STYLE: Formal-profesional tapi accessible.
+  - BRANDING: Produk GUUG Labs v2.0 oleh Rifky.
+</guidelines>
+`;
 
-## 🚀 IDENTITAS FINAL
-**GUUGIE PUBLIC BETA** dikembangkan oleh GUUG Labs (Muhammad Rifky Firmansyah Sujana/Rifky).
-Misi: Demokratisasi pengetahuan melalui AI yang etis dan akurat.`;
+    // 6. RAG CONTEXT HANDLING
+    let finalUserMessage = message;
+    if (extractedText) {
+      finalUserMessage = `
+<context_dokumen>
+${extractedText.slice(0, 50000)}
+</context_dokumen>
 
-    // 5. Eksekusi Request ke Infrastruktur LPU Groq
+<instruksi_user>
+Berdasarkan data di dalam tag <context_dokumen> di atas, tolong jawab pertanyaan ini:
+"${message}"
+
+(Jawab HANYA berdasarkan konteks dokumen jika informasinya tersedia).
+</instruksi_user>
+`;
+    }
+
+    // 7. EKSEKUSI
     const completion = await groq.chat.completions.create({
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
-        { 
-          role: "user", 
-          content: extractedText 
-            ? `[KONTEKS DOKUMEN]\\n${extractedText}\\n\\n[PERTANYAAN]\\n${message}` 
-            : message 
-        }
+        { role: "user", content: finalUserMessage }
       ],
       model: modelMapping[modelId] || "llama-3.3-70b-versatile",
-      temperature: 0.1, // Presisi tinggi untuk riset akademik
-      max_tokens: 4096, 
+      temperature: temp, 
+      max_tokens: 4096,
+      top_p: 1,
+      stream: false,
     });
 
     return NextResponse.json({ 
@@ -92,9 +94,9 @@ Misi: Demokratisasi pengetahuan melalui AI yang etis dan akurat.`;
     });
 
   } catch (error: any) {
-    console.error("GROQ_API_ERROR:", error);
+    console.error("API ERROR:", error);
     return NextResponse.json(
-      { error: "Sistem sedang dioptimasi oleh GUUG Labs. Mohon coba sesaat lagi." }, 
+      { content: "Maaf, Server GUUG Labs v2.0 sedang sibuk." }, 
       { status: 500 }
     );
   }
