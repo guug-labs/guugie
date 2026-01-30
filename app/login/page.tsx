@@ -57,7 +57,7 @@ export default function LoginPage() {
       
       <div className="w-full max-w-[400px] px-8 flex flex-col items-center animate-in fade-in zoom-in-95 duration-1000 relative z-20">
         
-        {/* LOGO & BRANDING (NO SPARKLES - LOGO ASLI) */}
+        {/* LOGO & BRANDING (MONOCHROME & TEGAK) */}
         <div className="mb-14 flex flex-col items-center gap-6">
           <div className="relative group">
             <div className="absolute inset-0 bg-white/5 blur-2xl rounded-full" />
@@ -72,10 +72,11 @@ export default function LoginPage() {
           </div>
 
           <div className="text-center space-y-2">
-            <h1 className="text-4xl font-black italic uppercase tracking-tighter text-white">
-              GUUGIE <span className="text-blue-500">v2.0</span>
+            {/* TEXT: TEGAK (NO ITALIC), NO BLUE */}
+            <h1 className="text-4xl font-bold uppercase tracking-tighter text-white">
+              GUUGIE <span className="text-white/50">v2.0</span>
             </h1>
-            <p className="text-[10px] text-white/40 font-black uppercase tracking-[0.4em] italic">
+            <p className="text-[10px] text-white/40 font-bold uppercase tracking-[0.4em]">
               The Student's Engine
             </p>
           </div>
@@ -86,7 +87,7 @@ export default function LoginPage() {
           <button 
             onClick={handleGoogleLogin} 
             disabled={isLoading}
-            className="group w-full h-16 bg-white hover:bg-[#f0f0f0] text-black text-[15px] font-black rounded-2xl flex items-center justify-center gap-4 transition-all active:scale-[0.98] disabled:opacity-50"
+            className="group w-full h-16 bg-white hover:bg-[#e5e5e5] text-black text-[15px] font-bold rounded-2xl flex items-center justify-center gap-4 transition-all active:scale-[0.98] disabled:opacity-50"
           >
             {isLoading ? (
               <Loader2 className="w-5 h-5 animate-spin" />
@@ -106,18 +107,19 @@ export default function LoginPage() {
           <div className="mt-8 flex items-start gap-4 px-2 text-white/30">
             <Globe2 size={18} className="shrink-0 mt-0.5 text-white/20" />
             <p className="text-[9px] font-bold leading-relaxed uppercase tracking-[0.1em]">
-              Akses riset akademik tanpa batas. Aman, Cepat, dan Terintegrasi dengan Groq LPU™.
+              Akses riset akademik tanpa batas. Aman, Cepat, dan Terintegrasi dengan v2.0 Engine.
             </p>
           </div>
         </div>
 
+        {/* FOOTER (NO ITALIC, NO BLUE) */}
         <div className="mt-20 flex flex-col items-center gap-6 opacity-20">
           <div className="flex items-center gap-6">
              <div className="h-px w-8 bg-white/10"></div>
-             <span className="text-[8px] font-black text-white/40 uppercase tracking-[0.5em]">Guugie v2.0</span>
+             <span className="text-[8px] font-bold text-white/40 uppercase tracking-[0.5em]">Guugie v2.0</span>
              <div className="h-px w-8 bg-white/10"></div>
           </div>
-          <p className="text-[9px] text-white/60 font-black italic uppercase tracking-widest">
+          <p className="text-[9px] text-white/60 font-bold uppercase tracking-widest">
             POWERED BY GUUG LABS 2026
           </p>
         </div>
